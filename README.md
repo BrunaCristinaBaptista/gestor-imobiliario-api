@@ -572,6 +572,8 @@ class UnidadeAdmin(admin.ModelAdmin):
 
 Também foram usados `TabularInline` (tutorial, seção 26): as unidades são cadastradas dentro da tela do imóvel, e os pagamentos aparecem dentro da tela do contrato.
 
+![Pagamentos dentro da tela do contrato (TabularInline)](docs/img/etapa2-contrato-pagamentos-inline.png)
+
 ```bash
 uv run python manage.py createsuperuser
 uv run python manage.py runserver
@@ -588,6 +590,8 @@ Em http://127.0.0.1:8000/admin/:
 Resultado dos testes:
 
 ![Unidades com status calculado](docs/img/etapa2-unidades-status.png)
+
+![Lista de contratos no Admin](docs/img/etapa2-contratos-lista.png)
 
 Contrato da Kitnet 01 alterado para **Rescindido** e a unidade passando a **Disponível**:
 
@@ -892,6 +896,27 @@ Com os dados de exemplo carregados (`loaddata dados_iniciais`) e o contrato #1 c
 | 11 | Mês fora da vigência | `POST /api/pagamentos/` no contrato 1 com `"mes_referencia": "2025-12"` | `400` em `mes_referencia` |
 | 12 | Pagamento sem valor | `PATCH /api/pagamentos/3/` com só `{"data_pagamento": "2026-10-20"}` | `400` em `valor_pago` |
 | 13 | Unidade de outro imóvel | `POST /api/despesas/` com `"imovel": 2, "unidade": 1` | `400` em `unidade` |
+
+Resultados:
+
+Teste 1, contrato sobreposto recusado:
+
+![Contrato sobreposto recusado](docs/img/etapa4-teste01-sobreposicao-400.png)
+
+Teste 6, rescisão do contrato #1 e Kitnet 01 liberada:
+
+![Contrato rescindido](docs/img/etapa4-teste06-rescindir-200.png)
+![Kitnet 01 disponível](docs/img/etapa4-teste06-unidade-disponivel.png)
+
+Teste 7, novo contrato aceito na unidade liberada:
+
+![Novo contrato criado](docs/img/etapa4-teste07-novo-contrato-201.png)
+
+Testes 9, 11 e 12, validações de CPF, vigência e pagamento:
+
+![CPF inválido](docs/img/etapa4-teste09-cpf-invalido-400.png)
+![Mês fora da vigência](docs/img/etapa4-teste11-mes-fora-vigencia-400.png)
+![Pagamento sem valor](docs/img/etapa4-teste12-pagamento-sem-valor-400.png)
 
 Ao final, para voltar aos dados de exemplo: excluir os contratos criados nos testes 2 e 7 (`DELETE`) e reativar o #1 (`PATCH` com `{"status": 1}`). Ou recriar o banco com `rm db.sqlite3`, `migrate` e `loaddata dados_iniciais`.
 
