@@ -1,6 +1,7 @@
 import re
 from decimal import Decimal
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -175,6 +176,7 @@ class ContratoSerializer(serializers.ModelSerializer):
     unidade_descricao = serializers.CharField(source="unidade", read_only=True)
     inquilino_descricao = serializers.CharField(source="inquilino", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    quantidade_cobrancas = serializers.IntegerField(source="pagamentos.count", read_only=True)
 
     class Meta:
         model = Contrato
@@ -192,6 +194,7 @@ class ContratoSerializer(serializers.ModelSerializer):
             "numero_parcelas_caucao",
             "status",
             "status_display",
+            "quantidade_cobrancas",
         )
 
     def validate_dia_vencimento(self, value):
@@ -266,6 +269,16 @@ class ContratoSerializer(serializers.ModelSerializer):
                 }
             )
         return attrs
+
+    def create(self, validated_data):
+        # Regra de negócio: um contrato criado como ativo já nasce com as cobranças
+        # de todos os meses da vigência. O atomic garante que, se algo falhar,
+        # nem o contrato nem as cobranças ficam gravados pela metade.
+        with transaction.atomic():
+            contrato = super().create(validated_data)
+            if contrato.status == Contrato.Status.ATIVO:
+                contrato.gerar_cobrancas()
+        return contrato
 
 
 class PagamentoSerializer(serializers.ModelSerializer):

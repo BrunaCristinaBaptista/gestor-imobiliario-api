@@ -1,3 +1,5 @@
+import datetime
+
 from django.db import models
 from django.utils import timezone
 
@@ -113,6 +115,29 @@ class Contrato(models.Model):
 
     def __str__(self):
         return f"Contrato #{self.id} - {self.unidade} - {self.inquilino}"
+
+    def gerar_cobrancas(self):
+        """
+        Cria um pagamento para cada mês da vigência, com vencimento no dia_vencimento
+        e o valor do aluguel. Meses que já têm pagamento são mantidos como estão.
+        Devolve a quantidade de cobranças criadas.
+        """
+        criadas = 0
+        ano, mes = self.data_inicio.year, self.data_inicio.month
+        while (ano, mes) <= (self.data_termino.year, self.data_termino.month):
+            _, criada = self.pagamentos.get_or_create(
+                mes_referencia=f"{ano}-{mes:02d}",
+                defaults={
+                    "data_vencimento": datetime.date(ano, mes, self.dia_vencimento),
+                    "valor_previsto": self.valor_aluguel,
+                },
+            )
+            if criada:
+                criadas += 1
+            mes += 1
+            if mes == 13:
+                ano, mes = ano + 1, 1
+        return criadas
 
 
 class Pagamento(models.Model):

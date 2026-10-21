@@ -194,6 +194,12 @@ Exemplo: com o contrato #1 ativo na Kitnet 01 de 01/03/2026 a 28/02/2027, este `
 }
 ```
 
+### Geração automática das cobranças
+
+Ao criar um contrato **ativo** pela API, o back-end gera automaticamente um pagamento para cada mês da vigência, com vencimento no `dia_vencimento` e o valor do aluguel. Por exemplo, um contrato de 01/01/2027 a 31/12/2027 com vencimento no dia 10 nasce com 12 cobranças, de `2027-01` (vencendo em 10/01/2027) a `2027-12`. O campo somente leitura `quantidade_cobrancas` do contrato mostra quantas existem.
+
+A geração acontece dentro de uma transação: se algo falhar, nem o contrato nem as cobranças ficam gravados pela metade.
+
 ### Regras do financeiro
 
 - O **mês de referência** de um pagamento precisa estar dentro da vigência do contrato.
@@ -321,6 +327,7 @@ Cada chave estrangeira é **enviada e recebida pelo id** (ex.: `"unidade": 1`). 
 | `<relação>_descricao` | `"unidade_descricao": "Residencial Palmeiras - Kitnet 01"` | `__str__` do registro relacionado |
 | `status_display` / `categoria_display` | `"status_display": "Ativo"` | rótulo do `IntegerChoices` |
 | `status_atual` | `"status_atual": "Ocupada"` | campo calculado do model |
+| `quantidade_cobrancas` | `"quantidade_cobrancas": 12` | número de pagamentos do contrato |
 
 Campos somente leitura são ignorados se forem enviados num `POST` ou `PUT`.
 
@@ -358,7 +365,8 @@ Resposta `201 Created`:
   "valor_caucao": "0.00",
   "numero_parcelas_caucao": 1,
   "status": 1,
-  "status_display": "Ativo"
+  "status_display": "Ativo",
+  "quantidade_cobrancas": 12
 }
 ```
 
@@ -1405,6 +1413,88 @@ npm run dev
 ```bash
 git add .
 git commit -m "feat(cors): habilita CORS para o front-end"
+```
+
+### Etapa 8 — Melhorias de gestão: cobranças automáticas e renovação
+
+**Objetivo:** tornar o sistema útil no dia a dia, sem lançar aluguel mês a mês, e reforçar a regra de negócio.
+
+**8.1 Gerar as cobranças do contrato (back-end)**
+
+O model `Contrato` ganhou o método `gerar_cobrancas`, que percorre os meses da vigência:
+
+```python
+def gerar_cobrancas(self):
+    criadas = 0
+    ano, mes = self.data_inicio.year, self.data_inicio.month
+    while (ano, mes) <= (self.data_termino.year, self.data_termino.month):
+        _, criada = self.pagamentos.get_or_create(
+            mes_referencia=f"{ano}-{mes:02d}",
+            defaults={
+                "data_vencimento": datetime.date(ano, mes, self.dia_vencimento),
+                "valor_previsto": self.valor_aluguel,
+            },
+        )
+        if criada:
+            criadas += 1
+        mes += 1
+        if mes == 13:
+            ano, mes = ano + 1, 1
+    return criadas
+```
+
+- `get_or_create` só cria o mês se ele ainda não existir, então chamar o método duas vezes não duplica cobranças (e a `UniqueConstraint` de contrato + mês garantiria isso no banco).
+- `datetime.date(ano, mes, self.dia_vencimento)` funciona em qualquer mês porque o `dia_vencimento` é validado de 1 a 28 (Etapa 4). Esse foi justamente o motivo do limite.
+
+O `ContratoSerializer` chama o método ao criar um contrato ativo, sobrescrevendo o `create`, como o tutorial faz nas seções 30 e 35 para criar os itens de uma compra:
+
+```python
+def create(self, validated_data):
+    with transaction.atomic():
+        contrato = super().create(validated_data)
+        if contrato.status == Contrato.Status.ATIVO:
+            contrato.gerar_cobrancas()
+    return contrato
+```
+
+- `super().create(...)` grava o contrato normalmente (depois de todas as validações, inclusive a de sobreposição).
+- `transaction.atomic()` garante que o contrato e as cobranças são gravados juntos ou não são gravados.
+- A geração vale para contratos criados **pela API**. O Admin não passa pelo serializer; lá, as cobranças são lançadas à mão.
+
+E um campo somente leitura com o total de cobranças:
+
+```python
+quantidade_cobrancas = serializers.IntegerField(source="pagamentos.count", read_only=True)
+```
+
+**8.2 Renovar contrato (front-end)**
+
+Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **Renovar** abre um contrato **novo** já preenchido: mesma unidade, inquilino, vencimento e valor; início no dia seguinte ao término do atual e a mesma duração. O valor pode ser ajustado para o reajuste. Ao salvar, a API aplica a regra de sobreposição e gera as cobranças do novo período.
+
+**8.3 Dashboard (front-end)**
+
+- **Mapa de ocupação:** cada imóvel com suas unidades coloridas pelo `status_atual` (Ocupada, Disponível, Manutenção) e, se ocupada, o inquilino e o fim do contrato.
+- **Rentabilidade por imóvel:** aluguéis recebidos menos despesas pagas no ano, por imóvel.
+- **Contratos a vencer:** janela ajustável (30, 90, 180 dias ou 1 ano) e atalho para renovar.
+
+**8.4 Testes**
+
+| # | Onde | Ação | Esperado |
+|---|---|---|---|
+| 1 | API | `POST /api/contratos/` na unidade 2 (Kitnet 02), de `2027-01-01` a `2027-12-31`, dia 10 | `201` com `"quantidade_cobrancas": 12` |
+| 2 | API | `GET /api/pagamentos/?contrato={id do teste 1}&ordering=mes_referencia` | 12 pagamentos, de `2027-01` a `2027-12`, vencendo no dia 10 |
+| 3 | API | `POST /api/contratos/` com `"status": 3` (rescindido) | `201` com `"quantidade_cobrancas": 0` |
+| 4 | Front | Contratos → Renovar no contrato #1 | formulário com início em 01/03/2027 e término em 29/02/2028 |
+| 5 | Front | salvar a renovação | aviso "Contrato #… criado com 12 cobranças mensais geradas automaticamente" |
+| 6 | Front | Dashboard → Contratos a vencer → "em 180 dias" | contrato #1 aparece, com o atalho "Renovar" |
+| 7 | Front | Dashboard → Mapa de ocupação | Kitnet 01 e Casa Principal ocupadas, Kitnet 02 disponível, Kitnet 03 em manutenção |
+| 8 | Front | Dashboard → Rentabilidade | Residencial Palmeiras e Casa Itinga com recebido, gasto e resultado do ano |
+
+**Commit (back-end)**
+
+```bash
+git add .
+git commit -m "feat(contratos): gera cobranças mensais ao criar contrato ativo"
 ```
 
 ---
