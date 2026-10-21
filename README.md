@@ -1408,7 +1408,11 @@ npm run dev
 | 9 | Inquilinos | excluir Carlos Ferreira | mensagem de registro vinculado (não exclui) |
 | 10 | qualquer | parar a API e recarregar | mensagem "Não foi possível conectar à API" |
 
-> Os prints desta etapa foram feitos antes da Etapa 8, quando endereços, imóveis e unidades ainda tinham abas separadas no menu.
+> Os prints dos testes 2, 3, 4, 5, 7 e 9 foram feitos antes da Etapa 8, quando endereços, imóveis e unidades ainda tinham abas separadas no menu. Os dos testes 1, 6, 8 e 10 foram feitos depois, com o banco recriado a partir dos dados iniciais.
+
+**Teste 1 — dashboard:** indicadores, mapa de ocupação, rentabilidade, fluxo dos últimos 6 meses, despesas por categoria e os painéis de contratos a vencer, aluguéis a receber e boletos em aberto, tudo calculado a partir da API.
+
+![Dashboard](docs/img/etapa7-teste01-dashboard.png)
 
 **Teste 2 — status das unidades calculado pela API:** Kitnet 01 e Casa Principal ocupadas, Kitnet 02 disponível, Kitnet 03 em manutenção.
 
@@ -1428,13 +1432,26 @@ npm run dev
 ![Contrato #1 reativado](docs/img/etapa7-teste05-contrato-reativado.png)
 ![Kitnet 01 ocupada novamente](docs/img/etapa7-teste05-kitnet-ocupada.png)
 
+**Teste 6 — validação de CPF e telefone:** a API devolve os erros de cada campo, e o front mostra todos de uma vez, com o nome do campo.
+
+![CPF inválido](docs/img/etapa7-teste06-cpf-invalido.png)
+
 **Teste 7 — despesa com boleto:** a Taxa do Lixo aparece *Em aberto*, com o link para o boleto enviado. Na mesma tela, os aluguéis com status *Pago*, *Atrasado* e *Pendente*.
 
 ![Financeiro com boleto anexado](docs/img/etapa7-teste07-financeiro-boleto.png)
 
+**Teste 8 — pagar uma despesa:** a Taxa de coleta de lixo 2026 passa de *Em aberto* para *Paga* depois de informar a data do pagamento. O status não é gravado: ele é recalculado pela API a partir da `data_pagamento`.
+
+![Despesa em aberto](docs/img/etapa7-teste08-despesa-em-aberto.png)
+![Despesa paga](docs/img/etapa7-teste08-despesa-paga.png)
+
 **Teste 9 — exclusão protegida:** o Carlos Ferreira tem contrato, então a API recusa a exclusão e o front mostra a mensagem.
 
 ![Exclusão de inquilino com contrato](docs/img/etapa7-teste09-inquilino-vinculado.png)
+
+**Teste 10 — API desligada:** o front avisa que não conseguiu conectar, em vez de mostrar telas vazias sem explicação.
+
+![API desligada](docs/img/etapa7-teste10-api-desligada.png)
 
 **Commit (back-end)**
 
@@ -1518,6 +1535,36 @@ Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **R
 | 6 | Front | Dashboard → Contratos a vencer → "em 180 dias" | contrato #1 aparece, com o atalho "Renovar" |
 | 7 | Front | Dashboard → Mapa de ocupação | Kitnet 01 e Casa Principal ocupadas, Kitnet 02 disponível, Kitnet 03 em manutenção |
 | 8 | Front | Dashboard → Rentabilidade | Residencial Palmeiras e Casa Itinga com recebido, gasto e resultado do ano |
+
+**Teste 1 — contrato ativo criado pela API:** `201` com `"quantidade_cobrancas": 12`.
+
+![Contrato criado com 12 cobranças](docs/img/etapa8-teste01-contrato-com-12-cobrancas.png)
+
+**Teste 2 — as 12 cobranças geradas:** de `2027-01` a `2027-12`, todas vencendo no dia 10 e com o valor do aluguel. Foi usado `page_size=20` para caberem numa página.
+
+![Início da lista de cobranças](docs/img/etapa8-teste02-cobrancas-inicio.png)
+![Fim da lista de cobranças](docs/img/etapa8-teste02-cobrancas-fim.png)
+
+**Teste 3 — contrato rescindido não gera cobranças:**
+
+![Contrato rescindido sem cobranças](docs/img/etapa8-teste03-rescindido-sem-cobrancas.png)
+
+**Teste 4 — formulário de renovação preenchido:** início em 01/03/2027 (dia seguinte ao término do contrato #1) e término em 29/02/2028 (2028 é bissexto), com a mesma unidade, inquilino, vencimento e valor.
+
+![Formulário de renovação](docs/img/etapa8-teste04-renovar-formulario.png)
+
+**Teste 5 — renovação salva:** o contrato #6 é criado com 12 cobranças, e elas aparecem no financeiro filtrando pelo contrato.
+
+![Renovação salva](docs/img/etapa8-teste05-renovacao-salva.png)
+![Cobranças do contrato renovado](docs/img/etapa8-teste05-cobrancas-da-renovacao.png)
+
+**Teste 7 — mapa de ocupação:**
+
+![Mapa de ocupação](docs/img/etapa8-teste07-mapa-de-ocupacao.png)
+
+**Teste 8 — rentabilidade por imóvel em 2026:** Residencial Palmeiras com R$ 1.900,00 recebidos e R$ 1.240,00 gastos (resultado R$ 660,00); Casa Itinga com R$ 1.800,00 recebidos e R$ 980,00 gastos (resultado R$ 820,00).
+
+![Rentabilidade por imóvel](docs/img/etapa8-teste08-rentabilidade.png)
 
 **Commit (back-end)**
 
