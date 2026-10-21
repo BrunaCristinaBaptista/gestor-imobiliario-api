@@ -44,6 +44,12 @@ class ExclusaoProtegidaMixin:
 
 
 class EnderecoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    """
+    Endereços dos imóveis.
+
+    Não é possível excluir um endereço que tenha imóveis vinculados.
+    """
+
     queryset = Endereco.objects.all()
     serializer_class = EnderecoSerializer
     filterset_class = EnderecoFilter
@@ -53,6 +59,12 @@ class EnderecoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
 
 
 class ImovelViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    """
+    Imóveis (casa, prédio de kitnets...). Cada imóvel fica num endereço e é dividido em unidades.
+
+    Não é possível excluir um imóvel que tenha despesas vinculadas.
+    """
+
     queryset = Imovel.objects.all()
     serializer_class = ImovelSerializer
     filterset_class = ImovelFilter
@@ -68,6 +80,13 @@ class ImovelViewSet(ExclusaoProtegidaMixin, ModelViewSet):
 
 
 class UnidadeViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    """
+    Unidades alugáveis de um imóvel (Kitnet 01, Casa Principal...).
+
+    O campo `status_atual` é calculado: Manutenção, Ocupada (contrato ativo cobrindo
+    a data de hoje) ou Disponível. Não é possível excluir uma unidade com contratos.
+    """
+
     queryset = Unidade.objects.all()
     serializer_class = UnidadeSerializer
     filterset_class = UnidadeFilter
@@ -77,6 +96,12 @@ class UnidadeViewSet(ExclusaoProtegidaMixin, ModelViewSet):
 
 
 class InquilinoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    """
+    Inquilinos. O CPF é validado (dígitos verificadores), único e gravado formatado.
+
+    Não é possível excluir um inquilino que tenha contratos.
+    """
+
     queryset = Inquilino.objects.all()
     serializer_class = InquilinoSerializer
     search_fields = ("nome", "sobrenome", "cpf", "email", "telefone")
@@ -85,6 +110,14 @@ class InquilinoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
 
 
 class ContratoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    """
+    Contratos de locação de uma unidade para um inquilino.
+
+    Regra de negócio: uma unidade não pode ter dois contratos ativos com períodos
+    sobrepostos, e uma unidade em manutenção não recebe contrato novo.
+    Status: 1 = Ativo, 2 = Encerrado, 3 = Rescindido.
+    """
+
     queryset = Contrato.objects.all()
     serializer_class = ContratoSerializer
     filterset_class = ContratoFilter
@@ -99,6 +132,13 @@ class ContratoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
 
 
 class PagamentoViewSet(ModelViewSet):
+    """
+    Pagamentos mensais de aluguel de um contrato (um por mês de referência, AAAA-MM).
+
+    O campo `status_atual` é calculado: Pago, Atrasado ou Pendente.
+    Use `em_aberto=true` para listar os pagamentos ainda não recebidos.
+    """
+
     queryset = Pagamento.objects.all()
     serializer_class = PagamentoSerializer
     filterset_class = PagamentoFilter
@@ -119,6 +159,14 @@ class PagamentoViewSet(ModelViewSet):
 
 
 class DespesaViewSet(ModelViewSet):
+    """
+    Despesas dos imóveis (IPTU, taxa de lixo, condomínio, manutenção...), com boleto e
+    comprovante opcionais (PDF, PNG ou JPG, até 5 MB, enviados como multipart/form-data).
+
+    O campo `status_atual` é calculado: Paga, Atrasada ou Em aberto.
+    Use `em_aberto=true` para listar os boletos ainda não pagos.
+    """
+
     queryset = Despesa.objects.all()
     serializer_class = DespesaSerializer
     filterset_class = DespesaFilter

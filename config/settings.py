@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "django_filters",
+    "drf_spectacular",
     "core",
 ]
 
@@ -87,6 +88,8 @@ STATIC_URL = "static/"
 
 
 REST_FRAMEWORK = {
+    # Documentação OpenAPI (Aula 21)
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     # Filtros (Aula 23), busca e ordenação (Aula 24) valem para todas as ViewSets.
     # Cada ViewSet define seus campos com filterset_class, search_fields e ordering_fields.
     "DEFAULT_FILTER_BACKENDS": [
@@ -97,6 +100,17 @@ REST_FRAMEWORK = {
     # Paginação (Aula 25)
     "DEFAULT_PAGINATION_CLASS": "core.pagination.PaginacaoPadrao",
     "PAGE_SIZE": 10,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Gestor Imobiliário API",
+    "DESCRIPTION": (
+        "API REST para gerenciar imóveis próprios: endereços, imóveis, unidades, "
+        "inquilinos, contratos de locação, pagamentos de aluguel e despesas. "
+        "Regra de negócio principal: uma unidade não pode ter dois contratos ativos "
+        "com períodos sobrepostos, e o status de ocupação é calculado a partir dos contratos."
+    ),
+    "VERSION": "1.0.0",
 }
 
 # Arquivos enviados pelo usuário (boletos e comprovantes)

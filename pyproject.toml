@@ -11,5 +11,6 @@ dependencies = [
     "django>=6.1.2",
     "django-filter>=26.2",
     "djangorestframework>=3.18.3",
+    "drf-spectacular>=0.30.0",
     "python-dotenv>=1.2.4",
 ]

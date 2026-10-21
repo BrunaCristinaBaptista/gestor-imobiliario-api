@@ -15,7 +15,7 @@ API REST para uma pessoa gerenciar os próprios imóveis: endereços, imóveis, 
 1. [Como executar](#1-como-executar)
 2. [Domínio e entidades](#2-domínio-e-entidades)
 3. [Regras de negócio](#3-regras-de-negócio)
-4. [Documentação da API](#4-documentação-da-api) *(Swagger na Etapa 6)*
+4. [Documentação da API](#4-documentação-da-api)
 5. [Construção passo a passo](#5-construção-passo-a-passo)
 6. [Checklist da Parte 8](#6-checklist-da-parte-8)
 
@@ -53,7 +53,9 @@ O `loaddata` é opcional: carrega dados de exemplo para testar (imóveis, unidad
 |---|---|
 | Django Admin | http://127.0.0.1:8000/admin/ |
 | API (interface navegável do DRF) | http://127.0.0.1:8000/api/ |
-| Swagger | http://127.0.0.1:8000/api/docs/ *(Etapa 6)* |
+| Swagger (documentação interativa) | http://127.0.0.1:8000/api/docs/ |
+| Redoc (documentação para leitura) | http://127.0.0.1:8000/api/redoc/ |
+| Esquema OpenAPI | http://127.0.0.1:8000/api/schema/ |
 
 ---
 
@@ -227,7 +229,15 @@ Além dessas, o próprio `ModelSerializer` aplica as regras dos models: campos o
 
 ## 4. Documentação da API
 
-Todas as rotas ficam sob `/api/` e recebem e devolvem **JSON**. A documentação interativa (Swagger) será adicionada na Etapa 6.
+Todas as rotas ficam sob `/api/` e recebem e devolvem **JSON**.
+
+A documentação completa e interativa, gerada automaticamente a partir do código, está em:
+
+- **Swagger:** http://127.0.0.1:8000/api/docs/ (permite executar as requisições pelo navegador, com o botão *Try it out*)
+- **Redoc:** http://127.0.0.1:8000/api/redoc/
+- **Esquema OpenAPI:** http://127.0.0.1:8000/api/schema/
+
+As seções abaixo resumem o contrato da API.
 
 ### Recursos
 
@@ -1187,6 +1197,131 @@ git add .
 git commit -m "feat(api): adiciona filtros, busca, ordenação e paginação"
 ```
 
+### Etapa 6 — Documentação OpenAPI com Swagger e Redoc (Aula 21)
+
+**Objetivo:** gerar a documentação da API automaticamente, a partir dos serializers, das ViewSets e dos filtros, sem mudar a arquitetura.
+
+**6.1 Instalar e configurar o drf-spectacular**
+
+```bash
+uv add drf-spectacular
+```
+
+Em `config/settings.py`, acrescentar `"drf_spectacular"` em `INSTALLED_APPS`, a chave `DEFAULT_SCHEMA_CLASS` no bloco `REST_FRAMEWORK` (sem apagar as chaves que já existem) e as configurações do esquema:
+
+```python
+REST_FRAMEWORK = {
+    # Documentação OpenAPI (Aula 21)
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # ... filtros e paginação da Etapa 5 ...
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Gestor Imobiliário API",
+    "DESCRIPTION": (
+        "API REST para gerenciar imóveis próprios: endereços, imóveis, unidades, "
+        "inquilinos, contratos de locação, pagamentos de aluguel e despesas. "
+        "Regra de negócio principal: uma unidade não pode ter dois contratos ativos "
+        "com períodos sobrepostos, e o status de ocupação é calculado a partir dos contratos."
+    ),
+    "VERSION": "1.0.0",
+}
+```
+
+**6.2 Rotas da documentação (`config/urls.py`)**
+
+```python
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/", include(router.urls)),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+]
+```
+
+- `/api/schema/` gera o documento OpenAPI (o "contrato" da API em formato padrão).
+- `/api/docs/` mostra esse documento no **Swagger UI**, onde é possível testar cada operação.
+- `/api/redoc/` mostra o mesmo documento no **Redoc**, mais adequado para leitura.
+
+**6.3 Descrição de cada recurso**
+
+O drf-spectacular usa a *docstring* de cada ViewSet como descrição do recurso no Swagger. Foi acrescentada uma docstring em cada ViewSet explicando o recurso e suas regras:
+
+```python
+class ContratoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    """
+    Contratos de locação de uma unidade para um inquilino.
+
+    Regra de negócio: uma unidade não pode ter dois contratos ativos com períodos
+    sobrepostos, e uma unidade em manutenção não recebe contrato novo.
+    Status: 1 = Ativo, 2 = Encerrado, 3 = Rescindido.
+    """
+```
+
+O restante vem do próprio código, sem configuração extra:
+
+| No Swagger aparece… | Vem de… |
+|---|---|
+| campos, tipos, obrigatórios e somente leitura | serializers |
+| valores aceitos em `status` e `categoria` | `IntegerChoices` dos models |
+| parâmetros de filtro | `FilterSet` de `core/filters.py` |
+| parâmetros `search`, `ordering`, `page`, `page_size` | `SearchFilter`, `OrderingFilter` e paginação |
+| formato `{ page, page_size, total_pages, results }` | `get_paginated_response_schema` da `PaginacaoPadrao` (Etapa 5) |
+
+**6.4 Testes**
+
+```bash
+uv run python manage.py spectacular --file schema.yml --validate
+rm schema.yml
+uv run python manage.py runserver
+```
+
+O primeiro comando gera o esquema e o valida; avisos (`Warning`) aparecem no terminal se algo não puder ser documentado. O arquivo `schema.yml` é apagado em seguida porque a documentação é sempre gerada na hora pela rota `/api/schema/`.
+
+| # | Teste | Esperado |
+|---|---|---|
+| 1 | Abrir `/api/docs/` | Swagger com os 7 recursos, cada um com GET, POST, PUT, PATCH e DELETE |
+| 2 | Abrir `GET /api/contratos/` | parâmetros `status`, `unidade`, `inquilino`, `imovel`, `valor_minimo`, `valor_maximo`, `search`, `ordering`, `page`, `page_size` |
+| 3 | Ver a resposta 200 de `GET /api/contratos/` | esquema com `page`, `page_size`, `total_pages`, `results` |
+| 4 | *Try it out* em `GET /api/despesas/` com `em_aberto=true` | `200` com só as despesas não pagas |
+| 5 | *Try it out* em `POST /api/contratos/` com o JSON do teste 1 da Etapa 4 | `400` com a mensagem de sobreposição |
+| 6 | Abrir `/api/redoc/` | mesma documentação, em formato de leitura |
+
+Resultados:
+
+Visão geral do Swagger, com título, descrição e os recursos agrupados:
+
+![Swagger: visão geral](docs/img/etapa6-swagger-visao-geral.png)
+
+`GET /api/contratos/` com a descrição da ViewSet e os parâmetros de filtro, busca, ordenação e paginação:
+
+![Swagger: parâmetros de contratos](docs/img/etapa6-swagger-parametros-contratos.png)
+
+Resposta `200` documentada no formato paginado `{ page, page_size, total_pages, results }`:
+
+![Swagger: resposta paginada](docs/img/etapa6-swagger-resposta-paginada.png)
+
+Regra de negócio testada pelo Swagger: `POST /api/contratos/` com período sobreposto ao contrato #1 retorna `400`:
+
+![Swagger: requisição do contrato sobreposto](docs/img/etapa6-swagger-post-contrato-requisicao.png)
+![Swagger: resposta 400 de sobreposição](docs/img/etapa6-swagger-post-contrato-400.png)
+
+> Os valores do *Example Value* (como `"dia_vencimento": 9223372036854776000`) são gerados automaticamente pelo Swagger apenas para mostrar o tipo de cada campo; as regras reais (ex.: vencimento de 1 a 28) estão nos validadores e na seção [3](#3-regras-de-negócio). A resposta `400` aparece como *Undocumented* porque o esquema automático documenta só as respostas de sucesso; os formatos de erro estão na seção [4](#operações-e-códigos-http).
+
+**Commit**
+
+```bash
+git add .
+git commit -m "docs(api): adiciona documentação OpenAPI e Swagger"
+```
+
 ---
 
 ## 6. Checklist da Parte 8
@@ -1200,7 +1335,7 @@ git commit -m "feat(api): adiciona filtros, busca, ordenação e paginação"
 - [x] Defini e implementei validações no backend.
 - [x] Implementei pelo menos uma regra de negócio além do CRUD.
 - [x] Implementei filtro, busca textual, ordenação e paginação.
-- [ ] Documentei a API e as instruções de execução.
+- [x] Documentei a API e as instruções de execução.
 - [x] Versionei o código em um repositório Git.
 - [ ] Informei todas as URLs necessárias para avaliação.
 - [ ] Preparei a demonstração e a explicação do projeto para a apresentação obrigatória.
