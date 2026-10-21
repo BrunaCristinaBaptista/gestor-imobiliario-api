@@ -1,6 +1,7 @@
 import re
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -225,49 +226,20 @@ class ContratoSerializer(serializers.ModelSerializer):
                 return attrs[campo]
             return getattr(self.instance, campo, None)
 
-        unidade = valor("unidade")
-        data_inicio = valor("data_inicio")
-        data_termino = valor("data_termino")
-        status = valor("status")
-        if status is None:
-            status = Contrato.Status.ATIVO
-
-        if data_termino <= data_inicio:
-            raise serializers.ValidationError(
-                {"data_termino": "A data de término deve ser posterior à data de início."}
-            )
-
-        if status != Contrato.Status.ATIVO:
-            return attrs
-
-        # Regra de negócio 1: unidade em manutenção não recebe contrato novo.
-        unidade_mudou = self.instance is None or self.instance.unidade_id != unidade.id
-        if unidade.em_manutencao and unidade_mudou:
-            raise serializers.ValidationError(
-                {"unidade": "Esta unidade está em manutenção e não pode receber um novo contrato."}
-            )
-
-        # Regra de negócio 2: uma unidade não pode ter dois contratos ativos
-        # com períodos que se sobrepõem.
-        conflitos = Contrato.objects.filter(
-            unidade=unidade,
-            status=Contrato.Status.ATIVO,
-            data_inicio__lte=data_termino,
-            data_termino__gte=data_inicio,
+        # Monta o contrato como ele ficaria (sem gravar) e aplica as regras de negócio,
+        # que ficam no model para valerem também no Django Admin.
+        contrato = Contrato(
+            pk=self.instance.pk if self.instance else None,
+            unidade=valor("unidade"),
+            data_inicio=valor("data_inicio"),
+            data_termino=valor("data_termino"),
+            status=valor("status") or Contrato.Status.ATIVO,
         )
-        if self.instance is not None:
-            conflitos = conflitos.exclude(pk=self.instance.pk)
-        conflito = conflitos.first()
-        if conflito:
-            raise serializers.ValidationError(
-                {
-                    "unidade": (
-                        f"Esta unidade já tem o contrato #{conflito.id} ativo de "
-                        f"{conflito.data_inicio:%d/%m/%Y} a {conflito.data_termino:%d/%m/%Y}, "
-                        "que se sobrepõe ao período informado."
-                    )
-                }
-            )
+        try:
+            contrato.validar_regras()
+        except DjangoValidationError as erro:
+            # Mesmo formato de antes: {"campo": ["mensagem"]}
+            raise serializers.ValidationError(erro.message_dict)
         return attrs
 
     def create(self, validated_data):

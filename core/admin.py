@@ -55,6 +55,15 @@ class ContratoAdmin(admin.ModelAdmin):
     list_filter = ("status", "unidade__imovel")
     inlines = [PagamentoInline]
 
+    def save_related(self, request, form, formsets, change):
+        # Depois de gravar o contrato e os pagamentos digitados na própria tela,
+        # gera as cobranças que faltam, como a API faz ao criar um contrato ativo.
+        # O Admin já envolve o salvamento numa transação.
+        super().save_related(request, form, formsets, change)
+        contrato = form.instance
+        if not change and contrato.status == Contrato.Status.ATIVO:
+            contrato.gerar_cobrancas()
+
 
 @admin.register(Pagamento)
 class PagamentoAdmin(admin.ModelAdmin):

@@ -176,7 +176,7 @@ O primeiro diagrama (feito no brModelo) foi simplificado durante a implementaç�
 
 ## 3. Regras de negócio
 
-As regras ficam no back-end, nos serializers (`core/serializers.py`), e podem ser verificadas pela API: quando uma regra é violada, a resposta é **400** com a mensagem no campo envolvido.
+As regras ficam no back-end e podem ser verificadas pela API: quando uma regra é violada, a resposta é **400** com a mensagem no campo envolvido. As validações de campo estão nos serializers (`core/serializers.py`). As regras do contrato (sobreposição, manutenção e datas) estão no model, em `Contrato.validar_regras()` (`core/models.py`), e são usadas tanto pela API quanto pelo Django Admin (veja a Etapa 11).
 
 ### Regra principal: ocupação da unidade
 
@@ -207,7 +207,7 @@ Exemplo: com o contrato #1 ativo na Kitnet 01 de 01/03/2026 a 28/02/2027, este `
 
 ### Geração automática das cobranças
 
-Ao criar um contrato **ativo** pela API, o back-end gera automaticamente um pagamento para cada mês da vigência, com vencimento no `dia_vencimento` e o valor do aluguel. Por exemplo, um contrato de 01/01/2027 a 31/12/2027 com vencimento no dia 10 nasce com 12 cobranças, de `2027-01` (vencendo em 10/01/2027) a `2027-12`. O campo somente leitura `quantidade_cobrancas` do contrato mostra quantas existem.
+Ao criar um contrato **ativo**, pela API ou pelo Django Admin, o back-end gera automaticamente um pagamento para cada mês da vigência, com vencimento no `dia_vencimento` e o valor do aluguel. Por exemplo, um contrato de 01/01/2027 a 31/12/2027 com vencimento no dia 10 nasce com 12 cobranças, de `2027-01` (vencendo em 10/01/2027) a `2027-12`. O campo somente leitura `quantidade_cobrancas` do contrato mostra quantas existem.
 
 A geração acontece dentro de uma transação: se algo falhar, nem o contrato nem as cobranças ficam gravados pela metade.
 
@@ -1536,7 +1536,7 @@ def create(self, validated_data):
 
 - `super().create(...)` grava o contrato normalmente (depois de todas as validações, inclusive a de sobreposição).
 - `transaction.atomic()` garante que o contrato e as cobranças são gravados juntos ou não são gravados.
-- A geração vale para contratos criados **pela API**. O Admin não passa pelo serializer; lá, as cobranças são lançadas à mão.
+- O Admin não passa pelo serializer. Na Etapa 11, ele passou a gerar as cobranças também.
 
 E um campo somente leitura com o total de cobranças:
 
@@ -1815,6 +1815,96 @@ No [front-end](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue):
 ```bash
 git add .
 git commit -m "feat(auth): adiciona autenticação JWT com SimpleJWT"
+```
+
+### Etapa 11 — Regras do contrato também no Django Admin
+
+**Objetivo:** fazer a regra de negócio valer em qualquer caminho de gravação, e não só na API.
+
+**O problema.** Até a Etapa 10, a regra de sobreposição ficava no `validate` do `ContratoSerializer`. O Django Admin não usa serializers, e sim formulários do próprio Django. Por isso, pelo Admin era possível gravar dois contratos ativos sobrepostos, um dia de vencimento 31 ou um contrato sem cobranças.
+
+**11.1 A regra vai para o model (`core/models.py`)**
+
+O método `validar_regras()` reúne as três regras do contrato: término depois do início, unidade em manutenção e sobreposição. O `clean()` é o método que o Django chama ao validar um formulário de model, como os do Admin:
+
+```python
+from django.core.exceptions import ValidationError
+
+class Contrato(models.Model):
+    ...
+    def validar_regras(self):
+        if self.data_termino <= self.data_inicio:
+            raise ValidationError({"data_termino": "A data de término deve ser posterior à data de início."})
+        if self.status != Contrato.Status.ATIVO:
+            return
+        # unidade em manutenção (só para contrato novo nela)
+        # contratos ativos sobrepostos na mesma unidade
+        ...
+
+    def clean(self):
+        super().clean()
+        if self.dia_vencimento is not None and not 1 <= self.dia_vencimento <= 28:
+            raise ValidationError({"dia_vencimento": "O dia de vencimento deve ser de 1 a 28."})
+        if self.unidade_id and self.data_inicio and self.data_termino and self.status:
+            self.validar_regras()
+```
+
+**11.2 O serializer passa a chamar o model (`core/serializers.py`)**
+
+O `validate` continua no serializer, como no material, mas agora monta o contrato como ele ficaria e chama a mesma regra. O `ValidationError` do Django é convertido para o do DRF, então a resposta da API não mudou: `400` com `{"unidade": ["Esta unidade já tem o contrato #1 ativo..."]}`.
+
+```python
+from django.core.exceptions import ValidationError as DjangoValidationError
+
+def validate(self, attrs):
+    def valor(campo):  # num PATCH, o que não veio sai do contrato atual
+        ...
+    contrato = Contrato(
+        pk=self.instance.pk if self.instance else None,
+        unidade=valor("unidade"),
+        data_inicio=valor("data_inicio"),
+        data_termino=valor("data_termino"),
+        status=valor("status") or Contrato.Status.ATIVO,
+    )
+    try:
+        contrato.validar_regras()
+    except DjangoValidationError as erro:
+        raise serializers.ValidationError(erro.message_dict)
+    return attrs
+```
+
+**11.3 O Admin também gera as cobranças (`core/admin.py`)**
+
+```python
+class ContratoAdmin(admin.ModelAdmin):
+    ...
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        contrato = form.instance
+        if not change and contrato.status == Contrato.Status.ATIVO:
+            contrato.gerar_cobrancas()
+```
+
+O `save_related` roda depois de gravar o contrato e os pagamentos digitados na própria tela. Como `gerar_cobrancas` usa `get_or_create`, um mês já lançado à mão não é duplicado. O Admin já grava tudo numa transação.
+
+> O `clean()` do model e o `save_related` do Admin não aparecem no material da disciplina nem no tutorial. São recursos do próprio Django, usados aqui para que a regra de negócio não dependa do caminho de gravação.
+
+**11.4 Testes**
+
+| # | Onde | Ação | Esperado |
+|---|---|---|---|
+| 1 | Admin | Contratos → Adicionar: Kitnet 01, Ana Souza, 01/12/2026 a 30/11/2027, dia 10, R$ 1.000,00, Ativo | erro em Unidade: "Esta unidade já tem o contrato #1 ativo…" |
+| 2 | Admin | mesmo formulário com dia de vencimento 31 | erro em Dia de vencimento: "O dia de vencimento deve ser de 1 a 28." |
+| 3 | Admin | Contratos → Adicionar na Kitnet 03 (em manutenção) | erro: "Esta unidade está em manutenção…" |
+| 4 | Admin | contrato ativo na Kitnet 02, de 01/01/2028 a 31/12/2028, dia 5 | salva, e a tela do contrato mostra 12 pagamentos de `2028-01` a `2028-12` |
+| 5 | API | repetir o teste 1 da Etapa 4 (`POST` sobreposto) | o mesmo `400` de antes |
+| 6 | API | `PATCH /api/contratos/1/` com `{"valor_aluguel": "990.00"}` | `200`: na edição, o contrato não é comparado com ele mesmo |
+
+**Commit**
+
+```bash
+git add .
+git commit -m "refactor(contratos): move regras do contrato para o model e aplica no admin"
 ```
 
 ---

@@ -1,5 +1,6 @@
 import datetime
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -115,6 +116,63 @@ class Contrato(models.Model):
 
     def __str__(self):
         return f"Contrato #{self.id} - {self.unidade} - {self.inquilino}"
+
+    def validar_regras(self):
+        """
+        Regras de negócio do contrato, num lugar só. Usada pela API (validate do
+        ContratoSerializer) e pelo Django Admin (clean, abaixo).
+        Levanta ValidationError com o erro no campo correspondente.
+        """
+        if self.data_termino <= self.data_inicio:
+            raise ValidationError(
+                {"data_termino": "A data de término deve ser posterior à data de início."}
+            )
+
+        if self.status != Contrato.Status.ATIVO:
+            return
+
+        # Regra 1: unidade em manutenção não recebe contrato novo.
+        # Um contrato que já estava nela pode continuar sendo editado.
+        unidade_anterior = (
+            Contrato.objects.filter(pk=self.pk).values_list("unidade_id", flat=True).first()
+        )
+        if self.unidade.em_manutencao and unidade_anterior != self.unidade_id:
+            raise ValidationError(
+                {"unidade": "Esta unidade está em manutenção e não pode receber um novo contrato."}
+            )
+
+        # Regra 2: uma unidade não pode ter dois contratos ativos
+        # com períodos que se sobrepõem.
+        conflito = (
+            Contrato.objects.filter(
+                unidade_id=self.unidade_id,
+                status=Contrato.Status.ATIVO,
+                data_inicio__lte=self.data_termino,
+                data_termino__gte=self.data_inicio,
+            )
+            .exclude(pk=self.pk)
+            .first()
+        )
+        if conflito:
+            raise ValidationError(
+                {
+                    "unidade": (
+                        f"Esta unidade já tem o contrato #{conflito.id} ativo de "
+                        f"{conflito.data_inicio:%d/%m/%Y} a {conflito.data_termino:%d/%m/%Y}, "
+                        "que se sobrepõe ao período informado."
+                    )
+                }
+            )
+
+    def clean(self):
+        # Chamado pelos formulários do Django Admin (a API não passa por aqui).
+        super().clean()
+        if self.dia_vencimento is not None and not 1 <= self.dia_vencimento <= 28:
+            raise ValidationError({"dia_vencimento": "O dia de vencimento deve ser de 1 a 28."})
+        # Só valida as regras quando os campos obrigatórios foram preenchidos;
+        # se faltar algum, o próprio formulário já mostra o erro do campo.
+        if self.unidade_id and self.data_inicio and self.data_termino and self.status:
+            self.validar_regras()
 
     def gerar_cobrancas(self):
         """
