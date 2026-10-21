@@ -1,0 +1,20 @@
+[
+    {
+        "model": "auth.user",
+        "pk": 100,
+        "fields": {
+            "password": "pbkdf2_sha256$1200000$IQpZsYdaaz5nU5FAwRkj8O$B8J++Cda81d243TvADkQhIlGsu/wHWPNWPM5jExbNJE=",
+            "last_login": null,
+            "is_superuser": false,
+            "username": "avaliador",
+            "first_name": "Avaliador",
+            "last_name": "de Teste",
+            "email": "",
+            "is_staff": false,
+            "is_active": true,
+            "date_joined": "2026-10-21T00:00:00Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    }
+]

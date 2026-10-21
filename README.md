@@ -42,17 +42,28 @@ Crie o banco, carregue os dados de exemplo, crie um usuário administrador e sub
 
 ```bash
 uv run python manage.py migrate
-uv run python manage.py loaddata dados_iniciais
+uv run python manage.py loaddata dados_iniciais usuario_teste
 uv run python manage.py createsuperuser
 uv run python manage.py runserver
 ```
 
-O `loaddata` é opcional: carrega dados de exemplo para testar (imóveis, unidades, contratos, pagamentos e despesas).
+O `loaddata` carrega dados de exemplo (imóveis, unidades, contratos, pagamentos e despesas) e um usuário de teste. O `createsuperuser` é necessário só para entrar no Django Admin.
+
+**Credenciais de teste** (usuário comum, sem acesso ao Admin, criado pelo `loaddata usuario_teste`):
+
+| Usuário | Senha |
+|---|---|
+| `avaliador` | `avaliador123` |
+
+> É uma conta fictícia, só para avaliação. Não é uma senha real e não dá acesso ao Admin.
+
+Todos os recursos da API exigem login (veja [Autenticação](#autenticação)).
 
 | Recurso | URL |
 |---|---|
 | Django Admin | http://127.0.0.1:8000/admin/ |
 | API (interface navegável do DRF) | http://127.0.0.1:8000/api/ |
+| Login da API (obter token JWT) | http://127.0.0.1:8000/api/token/ |
 | Swagger (documentação interativa) | http://127.0.0.1:8000/api/docs/ |
 | Redoc (documentação para leitura) | http://127.0.0.1:8000/api/redoc/ |
 | Esquema OpenAPI | http://127.0.0.1:8000/api/schema/ |
@@ -245,6 +256,23 @@ A documentação completa e interativa, gerada automaticamente a partir do códi
 
 As seções abaixo resumem o contrato da API.
 
+### Autenticação
+
+A API usa **JWT** (SimpleJWT). Todos os recursos abaixo exigem um usuário autenticado; sem token, a resposta é `401`.
+
+| Público (sem login) | Protegido (exige login) |
+|---|---|
+| `POST /api/token/` e `POST /api/token/refresh/` | todos os recursos: endereços, imóveis, unidades, inquilinos, contratos, pagamentos e despesas |
+| documentação: `/api/docs/`, `/api/redoc/`, `/api/schema/` | |
+
+1. **Login:** `POST /api/token/` com `{"username": "avaliador", "password": "avaliador123"}`. A resposta traz dois tokens: `access` (vale 3 horas) e `refresh` (vale 1 dia).
+2. **Requisições protegidas:** enviar o cabeçalho `Authorization: Bearer <access>`.
+3. **Token expirado:** `POST /api/token/refresh/` com `{"refresh": "<refresh>"}` devolve um novo `access`.
+
+No **Swagger**, use o botão **Authorize** e cole o `access`. Na **interface navegável do DRF**, basta entrar antes pelo Django Admin (autenticação por sessão).
+
+O token identifica o usuário: o campo `user_id` do token (que pode ser lido em [jwt.io](https://jwt.io/)) é o id do usuário que fez login, e a API recupera esse usuário em cada requisição (`request.user`).
+
 ### Recursos
 
 | Recurso | Coleção | Item |
@@ -268,8 +296,12 @@ As seções abaixo resumem o contrato da API.
 | Atualizar (parcial) | `PATCH` | item | `200` | `400` / `404` |
 | Excluir | `DELETE` | item | `204` (sem corpo) | `400` registro em uso / `404` |
 
+Em qualquer operação, a falta de token ou um token inválido/expirado devolve `401`.
+
 Formato dos erros:
 
+- `401` sem token: `{ "detail": "As credenciais de autenticação não foram fornecidas." }`
+- `401` no login com senha errada: `{ "detail": "Usuário e/ou senha incorreto(s)" }`
 - `404`: `{ "detail": "No Contrato matches the given query." }`
 - `400` de validação ou de regra de negócio: um item por campo, ex. `{ "inquilino": ["Este campo é obrigatório."] }` ou `{ "unidade": ["Esta unidade já tem o contrato #1 ativo..."] }`
 - `400` ao excluir registro em uso: `{ "detail": "Não é possível excluir este registro porque existem outros registros vinculados a ele." }`
@@ -1634,6 +1666,109 @@ Indicadores calculados no front a partir do histórico: total recebido, valor em
 ```bash
 git add .
 git commit -m "feat(api): adiciona filtro de pagamentos por inquilino"
+```
+
+### Etapa 10 — Autenticação com JWT (tutorial, seções 12, 13 e apêndice A7)
+
+**Objetivo:** exigir login para acessar os dados (inquilinos têm CPF, telefone e e-mail; contratos e pagamentos são informação financeira) e identificar o usuário em cada requisição.
+
+**10.1 Instalar o SimpleJWT**
+
+```bash
+uv add djangorestframework-simplejwt
+```
+
+**10.2 Configurar (`config/settings.py`)**
+
+```python
+from datetime import timedelta
+
+INSTALLED_APPS = [
+    ...
+    "rest_framework",
+    "rest_framework_simplejwt",
+    ...
+]
+
+REST_FRAMEWORK = {
+    ...
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=180),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
+```
+
+- **Autenticação** (quem é o usuário): `JWTAuthentication` lê o cabeçalho `Authorization: Bearer <token>`. A `SessionAuthentication` foi mantida para que a interface navegável do DRF continue funcionando depois de entrar pelo Admin, como no teste da seção 12.2 do tutorial.
+- **Autorização** (o que ele pode fazer): `IsAuthenticated`, configurado no `settings.py` como na seção 12.3 do tutorial, vale para todas as ViewSets de uma vez.
+- O tutorial segue para `DjangoModelPermissions` (permissões por grupo). Aqui não foi usado, porque o sistema tem uma única gestora e o enunciado do projeto diz que não são necessários perfis ou níveis de acesso.
+- A documentação (`/api/docs/`, `/api/redoc/`, `/api/schema/`) continua pública: o drf-spectacular serve essas rotas com permissão própria (`AllowAny`), e é dela que se tira o token.
+
+**10.3 Rotas de login (`config/urls.py`)**
+
+```python
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+urlpatterns = [
+    ...
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/", include(router.urls)),
+    ...
+]
+```
+
+**10.4 Usuário de teste**
+
+O enunciado pede credenciais de teste para a avaliação. Elas ficam na fixture `core/fixtures/usuario_teste.json`, com a senha **criptografada** (hash PBKDF2, como o Django grava). O texto da senha só aparece no README, por ser uma conta fictícia:
+
+```bash
+uv run python manage.py loaddata usuario_teste
+```
+
+**10.5 Login no front-end**
+
+No [front-end](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue):
+
+- **Tela de login:** envia usuário e senha para `/api/token/` e guarda os tokens no `localStorage`.
+- **Envio automático do token:** um *interceptor* do Axios coloca `Authorization: Bearer <access>` em todas as requisições.
+- **Token expirado:** quando a API responde `401`, o interceptor pede um novo `access` em `/api/token/refresh/` e repete a requisição. Se o `refresh` também tiver expirado, volta para a tela de login.
+- **Rotas protegidas:** o *router* manda para o login quem tenta abrir qualquer tela sem estar autenticado.
+- **Sair:** o botão "Sair" apaga os tokens.
+
+**10.6 Testes**
+
+| # | Onde | Ação | Esperado |
+|---|---|---|---|
+| 1 | API | sair do Admin e abrir `/api/contratos/` | `401` "As credenciais de autenticação não foram fornecidas." |
+| 2 | API | `POST /api/token/` com `avaliador` e senha errada | `401` "Usuário e/ou senha incorreto(s)" |
+| 3 | API | `POST /api/token/` com `avaliador` / `avaliador123` | `200` com `refresh` e `access` |
+| 4 | jwt.io | colar o `access` | `user_id: 100`, `token_type: access` e a expiração (`exp`) |
+| 5 | Swagger | `GET /api/contratos/` sem Authorize (numa janela anônima, ou depois de sair do Admin) | `401` |
+| 6 | Swagger | Authorize com o `access` e repetir | `200` com os contratos |
+| 7 | Swagger | `/api/docs/` aberto sem login | a documentação abre (rota pública) |
+| 8 | Front | abrir `http://localhost:5173/contratos` sem login | redireciona para a tela de login |
+| 9 | Front | login com senha errada | mensagem "Usuário e/ou senha incorreto(s)" |
+| 10 | Front | login com `avaliador` / `avaliador123` | abre a tela de contratos, com o usuário no menu |
+| 11 | Front | "Sair" e tentar voltar com o botão do navegador | volta para o login |
+
+> Nos testes 1 e 5, a sessão do Admin conta como login (`SessionAuthentication`). Por isso é preciso sair do Admin ou usar uma janela anônima para ver o `401`.
+
+**Limitação conhecida:** os arquivos enviados (boletos e comprovantes) são servidos pelo Django em `/media/` sem passar pela API, então quem tiver o link exato consegue abrir o arquivo sem login. A listagem que mostra esses links é protegida, mas o arquivo em si não. Protegê-lo exigiria uma rota própria de download que verificasse o token.
+
+**Commit (back-end)**
+
+```bash
+git add .
+git commit -m "feat(auth): adiciona autenticação JWT com SimpleJWT"
 ```
 
 ---

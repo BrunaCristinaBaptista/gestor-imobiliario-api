@@ -6,6 +6,7 @@ que não é versionado. Use o .env_exemplo como modelo.
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "rest_framework_simplejwt",
     "django_filters",
     "drf_spectacular",
     "core",
@@ -102,6 +104,23 @@ REST_FRAMEWORK = {
     # Paginação (Aula 25)
     "DEFAULT_PAGINATION_CLASS": "core.pagination.PaginacaoPadrao",
     "PAGE_SIZE": 10,
+    # Autenticação (tutorial, seção 13): token JWT para o front-end e clientes HTTP;
+    # sessão para continuar usando a interface navegável do DRF depois de entrar pelo Admin.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    # Autorização (tutorial, seção 12.3): todos os recursos exigem usuário autenticado.
+    # Ficam públicos só o login (/api/token/) e a documentação (/api/docs/, /api/redoc/, /api/schema/).
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+# Tempo de vida dos tokens (tutorial, apêndice A7)
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=180),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
 SPECTACULAR_SETTINGS = {
@@ -110,9 +129,13 @@ SPECTACULAR_SETTINGS = {
         "API REST para gerenciar imóveis próprios: endereços, imóveis, unidades, "
         "inquilinos, contratos de locação, pagamentos de aluguel e despesas. "
         "Regra de negócio principal: uma unidade não pode ter dois contratos ativos "
-        "com períodos sobrepostos, e o status de ocupação é calculado a partir dos contratos."
+        "com períodos sobrepostos, e o status de ocupação é calculado a partir dos contratos.\n\n"
+        "Autenticação: faça POST em /api/token/ com username e password, copie o campo access "
+        "e informe-o no botão Authorize. Sem token, os recursos respondem 401."
     ),
     "VERSION": "1.0.0",
+    # Mantém o token informado no Authorize mesmo ao recarregar a página do Swagger.
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
 # Arquivos enviados pelo usuário (boletos e comprovantes)
