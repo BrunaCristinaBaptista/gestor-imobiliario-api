@@ -14,7 +14,7 @@ API REST para uma pessoa gerenciar os próprios imóveis: endereços, imóveis, 
 
 1. [Como executar](#1-como-executar)
 2. [Domínio e entidades](#2-domínio-e-entidades)
-3. [Regras de negócio](#3-regras-de-negócio) *(Etapa 4)*
+3. [Regras de negócio](#3-regras-de-negócio)
 4. [Documentação da API](#4-documentação-da-api) *(Swagger na Etapa 6)*
 5. [Construção passo a passo](#5-construção-passo-a-passo)
 6. [Checklist da Parte 8](#6-checklist-da-parte-8)
@@ -163,7 +163,67 @@ O primeiro diagrama (feito no brModelo) foi simplificado durante a implementaç�
 
 ## 3. Regras de negócio
 
-*Preenchido na Etapa 4.*
+As regras ficam no back-end, nos serializers (`core/serializers.py`), e podem ser verificadas pela API: quando uma regra é violada, a resposta é **400** com a mensagem no campo envolvido.
+
+### Regra principal: ocupação da unidade
+
+1. **Status calculado.** O `status_atual` da unidade é calculado a cada consulta: *Manutenção* se estiver marcada como em manutenção; *Ocupada* se houver contrato **Ativo** cobrindo a data de hoje; senão *Disponível*. Rescindir ou encerrar um contrato libera a unidade automaticamente, e um contrato que vence deixa de ocupá-la no dia seguinte, sem nenhuma ação manual.
+2. **Contratos sobrepostos.** Uma unidade não pode ter dois contratos **ativos** com períodos que se sobrepõem. Dois períodos se sobrepõem quando um começa antes do outro terminar:
+
+   ```text
+   existente.data_inicio <= novo.data_termino  E  existente.data_termino >= novo.data_inicio
+   ```
+
+   Contratos encerrados ou rescindidos não bloqueiam. Ao editar um contrato, ele não é comparado com ele mesmo.
+3. **Unidade em manutenção** não pode receber um contrato novo.
+
+Exemplo: com o contrato #1 ativo na Kitnet 01 de 01/03/2026 a 28/02/2027, este `POST /api/contratos/` é recusado:
+
+```json
+{ "unidade": 1, "inquilino": 2, "data_inicio": "2026-12-01", "data_termino": "2027-11-30",
+  "dia_vencimento": 10, "valor_aluguel": "1000.00", "status": 1 }
+```
+
+```json
+{
+  "unidade": [
+    "Esta unidade já tem o contrato #1 ativo de 01/03/2026 a 28/02/2027, que se sobrepõe ao período informado."
+  ]
+}
+```
+
+### Regras do financeiro
+
+- O **mês de referência** de um pagamento precisa estar dentro da vigência do contrato.
+- **Um pagamento por mês** por contrato (restrição no banco).
+- **Data de pagamento e valor pago** são informados juntos: ou o pagamento está registrado (os dois), ou está pendente (nenhum).
+- A **data de pagamento** não pode ser futura.
+- A **unidade de uma despesa** precisa pertencer ao imóvel da despesa.
+
+### Validações de campo
+
+| Model | Campo | Regra |
+|---|---|---|
+| Endereço | `cep` | 8 dígitos; gravado como `00000-000` |
+| Endereço | `estado` | sigla de UF válida; gravada em maiúsculas |
+| Endereço | `cidade`, `bairro`, `rua` | pelo menos 2 caracteres |
+| Imóvel | `nome_imovel`, `tipo_imovel` | pelo menos 2 caracteres |
+| Unidade | `identificacao` | pelo menos 2 caracteres; única por imóvel |
+| Inquilino | `nome`, `sobrenome` | pelo menos 2 caracteres |
+| Inquilino | `cpf` | dígitos verificadores válidos; único; gravado como `000.000.000-00` |
+| Inquilino | `telefone` | DDD + número (10 ou 11 dígitos); gravado como `(00) 00000-0000` |
+| Contrato | `data_termino` | posterior à `data_inicio` |
+| Contrato | `dia_vencimento` | de 1 a 28 (todo mês tem pelo menos 28 dias) |
+| Contrato | `valor_aluguel` | maior que zero |
+| Contrato | `valor_caucao` | não negativo |
+| Contrato | `numero_parcelas_caucao` | pelo menos 1 |
+| Pagamento | `mes_referencia` | formato `AAAA-MM` |
+| Pagamento | `valor_previsto`, `valor_pago` | maiores que zero |
+| Despesa | `descricao` | pelo menos 3 caracteres |
+| Despesa | `valor` | maior que zero |
+| Pagamento e Despesa | arquivos | PDF, PNG ou JPG, até 5 MB |
+
+Além dessas, o próprio `ModelSerializer` aplica as regras dos models: campos obrigatórios, tamanho máximo, tipos (data, número, decimal), valores das `choices` e unicidade.
 
 ## 4. Documentação da API
 
@@ -195,7 +255,7 @@ Todas as rotas ficam sob `/api/` e recebem e devolvem **JSON**. A documentação
 Formato dos erros:
 
 - `404`: `{ "detail": "No Contrato matches the given query." }`
-- `400` de validação: um item por campo, ex. `{ "inquilino": ["Este campo é obrigatório."] }`
+- `400` de validação ou de regra de negócio: um item por campo, ex. `{ "inquilino": ["Este campo é obrigatório."] }` ou `{ "unidade": ["Esta unidade já tem o contrato #1 ativo..."] }`
 - `400` ao excluir registro em uso: `{ "detail": "Não é possível excluir este registro porque existem outros registros vinculados a ele." }`
 
 ### Campos de leitura
@@ -677,11 +737,185 @@ uv run python manage.py runserver
 | 7 | Excluir | `DELETE /api/contratos/{id}/` (o criado no teste 4) | `204` |
 | 8 | Excluir protegido | `DELETE /api/inquilinos/1/` | `400` com `detail` (não `500`) |
 
+Resultados:
+
+![GET /api/unidades/ com status calculado](docs/img/etapa3-get-unidades.png)
+
+![GET de id inexistente retorna 404](docs/img/etapa3-get-404.png)
+
+![POST sem inquilino retorna 400](docs/img/etapa3-post-400-campo-obrigatorio.png)
+
+![DELETE de inquilino com contrato retorna 400](docs/img/etapa3-delete-protegido-400.png)
+
 **Commit**
 
 ```bash
 git add .
 git commit -m "feat(drf): cria endpoints REST das entidades"
+```
+
+### Etapa 4 — Validações e regras de negócio (Aula 22)
+
+**Objetivo:** impedir que a API aceite dados inválidos e implementar a regra de negócio do domínio, tudo antes de gravar no banco.
+
+As validações ficam nos serializers, no padrão da Aula 22:
+
+- **`validate_<campo>(self, value)`**: valida e normaliza **um campo**. Recebe o valor já convertido para o tipo certo (texto, número, data), devolve o valor (que pode ser ajustado, ex.: CPF formatado) ou lança `serializers.ValidationError`.
+- **`validate(self, attrs)`**: valida regras que envolvem **vários campos** juntos (ex.: término depois do início, sobreposição de contratos). Recebe todos os campos já validados.
+
+O DRF executa nesta ordem: tipos e regras do model → `validate_<campo>` → `validate` → só então salva. Se qualquer etapa falhar, nada é gravado e a resposta é `400`.
+
+**4.1 Validação de campo**
+
+```python
+def validate_dia_vencimento(self, value):
+    # Até 28, porque todo mês tem pelo menos 28 dias.
+    if not 1 <= value <= 28:
+        raise serializers.ValidationError("O dia de vencimento deve ser de 1 a 28.")
+    return value
+
+def validate_valor_aluguel(self, value):
+    if value <= Decimal("0"):
+        raise serializers.ValidationError("O valor do aluguel deve ser maior que zero.")
+    return value
+```
+
+Como na Aula 22, valores monetários são comparados com `Decimal("0")`, sem converter para `float`.
+
+Validações repetidas em vários serializers (texto mínimo, arquivo, data de pagamento) viraram funções no início do arquivo, chamadas pelos `validate_<campo>`:
+
+```python
+def validar_texto_minimo(valor, minimo=2):
+    texto = valor.strip()
+    if len(texto) < minimo:
+        raise serializers.ValidationError(f"Informe pelo menos {minimo} caracteres.")
+    return texto
+```
+
+**4.2 CPF: validar, formatar e conferir unicidade**
+
+```python
+def validate_cpf(self, value):
+    digitos = somente_digitos(value)
+    if not cpf_valido(digitos):
+        raise serializers.ValidationError("CPF inválido.")
+    cpf = f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
+    mesmos_cpfs = Inquilino.objects.filter(cpf=cpf)
+    if self.instance is not None:
+        mesmos_cpfs = mesmos_cpfs.exclude(pk=self.instance.pk)
+    if mesmos_cpfs.exists():
+        raise serializers.ValidationError("Já existe um inquilino com este CPF.")
+    return cpf
+```
+
+O CPF é aceito com ou sem pontuação, mas é gravado sempre formatado. Por isso a unicidade é conferida **depois** da formatação: sem isso, `11144477735` passaria pela verificação automática do DRF (que compara o texto como foi enviado) e o banco recusaria `111.444.777-35` duplicado com erro 500.
+
+`self.instance` é o registro sendo editado (no `PUT`/`PATCH`) ou `None` (no `POST`). Excluí-lo da busca evita que um inquilino seja recusado por "duplicar" o próprio CPF.
+
+**4.3 Regra de negócio: contratos sobrepostos**
+
+```python
+def validate(self, attrs):
+    # Num PATCH só chegam os campos enviados; os demais vêm do contrato atual.
+    def valor(campo):
+        if campo in attrs:
+            return attrs[campo]
+        return getattr(self.instance, campo, None)
+
+    unidade = valor("unidade")
+    data_inicio = valor("data_inicio")
+    data_termino = valor("data_termino")
+    status = valor("status")
+    if status is None:
+        status = Contrato.Status.ATIVO
+
+    if data_termino <= data_inicio:
+        raise serializers.ValidationError(
+            {"data_termino": "A data de término deve ser posterior à data de início."}
+        )
+
+    if status != Contrato.Status.ATIVO:
+        return attrs
+
+    # Regra de negócio 1: unidade em manutenção não recebe contrato novo.
+    unidade_mudou = self.instance is None or self.instance.unidade_id != unidade.id
+    if unidade.em_manutencao and unidade_mudou:
+        raise serializers.ValidationError(
+            {"unidade": "Esta unidade está em manutenção e não pode receber um novo contrato."}
+        )
+
+    # Regra de negócio 2: uma unidade não pode ter dois contratos ativos
+    # com períodos que se sobrepõem.
+    conflitos = Contrato.objects.filter(
+        unidade=unidade,
+        status=Contrato.Status.ATIVO,
+        data_inicio__lte=data_termino,
+        data_termino__gte=data_inicio,
+    )
+    if self.instance is not None:
+        conflitos = conflitos.exclude(pk=self.instance.pk)
+    conflito = conflitos.first()
+    if conflito:
+        raise serializers.ValidationError(
+            {
+                "unidade": (
+                    f"Esta unidade já tem o contrato #{conflito.id} ativo de "
+                    f"{conflito.data_inicio:%d/%m/%Y} a {conflito.data_termino:%d/%m/%Y}, "
+                    "que se sobrepõe ao período informado."
+                )
+            }
+        )
+    return attrs
+```
+
+- A consulta usa `__lte` e `__gte`, os mesmos lookups da Aula 23, para aplicar a condição de sobreposição direto no banco.
+- O erro é lançado como dicionário (`{"unidade": ...}`) para a mensagem aparecer no campo envolvido, e não num erro genérico.
+- A função `valor()` resolve o `PATCH`: se o cliente só mudar o `status`, as datas e a unidade vêm do contrato salvo.
+- Reativar um contrato rescindido (`PATCH` com `"status": 1`) também passa pela regra: se outro contrato ativo ocupar o mesmo período, a reativação é recusada.
+
+**4.4 Testes**
+
+Com os dados de exemplo carregados (`loaddata dados_iniciais`) e o contrato #1 como **Ativo**:
+
+| # | Teste | Requisição | Esperado |
+|---|---|---|---|
+| 1 | Contrato sobreposto | `POST /api/contratos/` na unidade 1, de `2026-12-01` a `2027-11-30` (JSON abaixo) | `400` em `unidade`, citando o contrato #1 |
+| 2 | Contrato sem sobreposição | mesmo JSON, com datas `2027-12-01` a `2028-11-30` | `201` |
+| 3 | Unidade em manutenção | mesmo JSON, com `"unidade": 3` | `400` em `unidade` |
+| 4 | Término antes do início | mesmo JSON, com `"data_termino": "2026-11-01"` | `400` em `data_termino` |
+| 5 | Dia de vencimento inválido | mesmo JSON, com `"dia_vencimento": 31` | `400` em `dia_vencimento` |
+| 6 | Rescindir libera a unidade | `PATCH /api/contratos/1/` com `{"status": 3}`, depois `GET /api/unidades/1/` | `status_atual` = `Disponível` |
+| 7 | Novo contrato na unidade liberada | repetir o `POST` do teste 1 | agora `201` (o #1 está rescindido) |
+| 8 | Reativar com conflito | `PATCH /api/contratos/1/` com `{"status": 1}` | `400` em `unidade`, citando o contrato do teste 7 |
+| 9 | CPF inválido | `POST /api/inquilinos/` com `"cpf": "123.456.789-00"` | `400` em `cpf` |
+| 10 | CPF duplicado sem pontuação | `POST /api/inquilinos/` com `"cpf": "11144477735"` | `400` em `cpf` |
+| 11 | Mês fora da vigência | `POST /api/pagamentos/` no contrato 1 com `"mes_referencia": "2025-12"` | `400` em `mes_referencia` |
+| 12 | Pagamento sem valor | `PATCH /api/pagamentos/3/` com só `{"data_pagamento": "2026-10-20"}` | `400` em `valor_pago` |
+| 13 | Unidade de outro imóvel | `POST /api/despesas/` com `"imovel": 2, "unidade": 1` | `400` em `unidade` |
+
+Ao final, para voltar aos dados de exemplo: excluir os contratos criados nos testes 2 e 7 (`DELETE`) e reativar o #1 (`PATCH` com `{"status": 1}`). Ou recriar o banco com `rm db.sqlite3`, `migrate` e `loaddata dados_iniciais`.
+
+JSON do teste 1:
+
+```json
+{
+  "unidade": 1,
+  "inquilino": 2,
+  "data_inicio": "2026-12-01",
+  "data_termino": "2027-11-30",
+  "dia_vencimento": 10,
+  "valor_aluguel": "1000.00",
+  "valor_caucao": "0.00",
+  "numero_parcelas_caucao": 1,
+  "status": 1
+}
+```
+
+**Commit**
+
+```bash
+git add .
+git commit -m "feat(api): adiciona validações e regras de negócio"
 ```
 
 ---
@@ -694,8 +928,8 @@ git commit -m "feat(drf): cria endpoints REST das entidades"
 - [x] Implementei `GET` da coleção, `GET` individual, `POST`, `PUT` e `DELETE`.
 - [x] Utilizei códigos HTTP adequados e respostas em JSON quando aplicável.
 - [x] Os dados estão persistidos em um banco de dados.
-- [ ] Defini e implementei validações no backend.
-- [ ] Implementei pelo menos uma regra de negócio além do CRUD.
+- [x] Defini e implementei validações no backend.
+- [x] Implementei pelo menos uma regra de negócio além do CRUD.
 - [ ] Implementei filtro, busca textual, ordenação e paginação.
 - [ ] Documentei a API e as instruções de execução.
 - [x] Versionei o código em um repositório Git.
