@@ -42,6 +42,7 @@ class ContratoFilter(filters.FilterSet):
 
 
 class PagamentoFilter(filters.FilterSet):
+    inquilino = filters.NumberFilter(field_name="contrato__inquilino")
     em_aberto = filters.BooleanFilter(field_name="data_pagamento", lookup_expr="isnull")
     vencimento_minimo = filters.DateFilter(field_name="data_vencimento", lookup_expr="gte")
     vencimento_maximo = filters.DateFilter(field_name="data_vencimento", lookup_expr="lte")
@@ -50,6 +51,7 @@ class PagamentoFilter(filters.FilterSet):
         model = Pagamento
         fields = (
             "contrato",
+            "inquilino",
             "mes_referencia",
             "em_aberto",
             "vencimento_minimo",

@@ -306,7 +306,7 @@ A ordem de aplicação é: filtros → busca → ordenação → paginação. Um
 | Unidades | `imovel`, `em_manutencao` | identificação, nome do imóvel | `id`, `identificacao`, `imovel__nome_imovel` |
 | Inquilinos | — | nome, sobrenome, CPF, e-mail, telefone | `id`, `nome`, `sobrenome` |
 | Contratos | `status`, `unidade`, `inquilino`, `imovel`, `valor_minimo`, `valor_maximo` | nome e sobrenome do inquilino, unidade, imóvel | `id`, `data_inicio`, `data_termino`, `valor_aluguel`, `status` |
-| Pagamentos | `contrato`, `mes_referencia`, `em_aberto`, `vencimento_minimo`, `vencimento_maximo` | mês, nome do inquilino, unidade | `id`, `mes_referencia`, `data_vencimento`, `data_pagamento`, `valor_previsto` |
+| Pagamentos | `contrato`, `inquilino`, `mes_referencia`, `em_aberto`, `vencimento_minimo`, `vencimento_maximo` | mês, nome do inquilino, unidade | `id`, `mes_referencia`, `data_vencimento`, `data_pagamento`, `valor_previsto` |
 | Despesas | `imovel`, `unidade`, `categoria`, `em_aberto`, `valor_minimo`, `valor_maximo`, `vencimento_minimo`, `vencimento_maximo` | descrição, imóvel, unidade | `id`, `data_vencimento`, `valor`, `categoria`, `descricao` |
 
 Exemplos:
@@ -1496,6 +1496,50 @@ Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **R
 ```bash
 git add .
 git commit -m "feat(contratos): gera cobranças mensais ao criar contrato ativo"
+```
+
+### Etapa 9 — Ficha do inquilino
+
+**Objetivo:** reunir, numa tela, os dados de um inquilino, seus contratos e todo o histórico de pagamentos, com os atrasos destacados.
+
+**9.1 Filtro de pagamentos por inquilino (back-end)**
+
+O pagamento não tem ligação direta com o inquilino: o caminho é pagamento → contrato → inquilino. O `FilterSet` percorre esse caminho com `__`, como o `unidade__imovel` da Etapa 5:
+
+```python
+class PagamentoFilter(filters.FilterSet):
+    inquilino = filters.NumberFilter(field_name="contrato__inquilino")
+    ...
+```
+
+Exemplo: `GET /api/pagamentos/?inquilino=1&ordering=-mes_referencia` traz todos os pagamentos do inquilino 1, de todos os contratos dele.
+
+**9.2 Tela da ficha (front-end)**
+
+Nova rota `/inquilinos/{id}`, aberta pelo botão **Ficha** na tela de inquilinos e pelo nome do inquilino na tela de contratos. Ela usa só consultas que a API já oferece:
+
+| Bloco | Consulta |
+|---|---|
+| Dados do inquilino | `GET /api/inquilinos/{id}/` |
+| Contratos | `GET /api/contratos/?inquilino={id}&ordering=-data_inicio` |
+| Histórico de pagamentos | `GET /api/pagamentos/?inquilino={id}&ordering=-mes_referencia` |
+
+Indicadores calculados no front a partir do histórico: total recebido, valor em atraso, quantidade de pagamentos feitos com atraso e **pontualidade** (percentual dos pagamentos feitos até o vencimento). Pagamentos atrasados e pagos com atraso aparecem destacados, com o número de dias.
+
+**9.3 Testes**
+
+| # | Onde | Ação | Esperado |
+|---|---|---|---|
+| 1 | API | `GET /api/pagamentos/?inquilino=1` | só os pagamentos do Carlos Ferreira (contrato #1) |
+| 2 | API | `GET /api/pagamentos/?inquilino=999` | `200` com `results: []` |
+| 3 | Front | Inquilinos → Ficha do Carlos Ferreira | contrato #1 e os pagamentos de 2026-08 a 2026-10; o de 2026-10 destacado como *Atrasado* |
+| 4 | Front | Contratos → clicar no nome de um inquilino | abre a ficha dele |
+
+**Commit (back-end)**
+
+```bash
+git add .
+git commit -m "feat(api): adiciona filtro de pagamentos por inquilino"
 ```
 
 ---
