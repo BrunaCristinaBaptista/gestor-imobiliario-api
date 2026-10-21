@@ -15,7 +15,7 @@ API REST para uma pessoa gerenciar os próprios imóveis: endereços, imóveis, 
 1. [Como executar](#1-como-executar)
 2. [Domínio e entidades](#2-domínio-e-entidades)
 3. [Regras de negócio](#3-regras-de-negócio) *(Etapa 4)*
-4. [Documentação da API](#4-documentação-da-api) *(Etapas 3 a 6)*
+4. [Documentação da API](#4-documentação-da-api) *(Swagger na Etapa 6)*
 5. [Construção passo a passo](#5-construção-passo-a-passo)
 6. [Checklist da Parte 8](#6-checklist-da-parte-8)
 
@@ -26,7 +26,7 @@ API REST para uma pessoa gerenciar os próprios imóveis: endereços, imóveis, 
 Pré-requisitos: [uv](https://docs.astral.sh/uv/) e Git.
 
 ```bash
-git clone https://github.com/BrunaCristinaBaptista/
+git clone https://github.com/BrunaCristinaBaptista/gestor-imobiliario-api.git
 cd gestor-imobiliario-api
 uv sync
 cp .env_exemplo .env
@@ -52,7 +52,7 @@ O `loaddata` é opcional: carrega dados de exemplo para testar (imóveis, unidad
 | Recurso | URL |
 |---|---|
 | Django Admin | http://127.0.0.1:8000/admin/ |
-| API | http://127.0.0.1:8000/api/ *(Etapa 3)* |
+| API (interface navegável do DRF) | http://127.0.0.1:8000/api/ |
 | Swagger | http://127.0.0.1:8000/api/docs/ *(Etapa 6)* |
 
 ---
@@ -167,7 +167,97 @@ O primeiro diagrama (feito no brModelo) foi simplificado durante a implementaç�
 
 ## 4. Documentação da API
 
-*Preenchido nas Etapas 3 a 6.*
+Todas as rotas ficam sob `/api/` e recebem e devolvem **JSON**. A documentação interativa (Swagger) será adicionada na Etapa 6.
+
+### Recursos
+
+| Recurso | Coleção | Item |
+|---|---|---|
+| Endereços | `/api/enderecos/` | `/api/enderecos/{id}/` |
+| Imóveis | `/api/imoveis/` | `/api/imoveis/{id}/` |
+| Unidades | `/api/unidades/` | `/api/unidades/{id}/` |
+| Inquilinos | `/api/inquilinos/` | `/api/inquilinos/{id}/` |
+| Contratos | `/api/contratos/` | `/api/contratos/{id}/` |
+| Pagamentos | `/api/pagamentos/` | `/api/pagamentos/{id}/` |
+| Despesas | `/api/despesas/` | `/api/despesas/{id}/` |
+
+### Operações e códigos HTTP
+
+| Operação | Método | URL | Sucesso | Erros |
+|---|---|---|---|---|
+| Listar | `GET` | coleção | `200` | — |
+| Detalhar | `GET` | item | `200` | `404` id inexistente |
+| Criar | `POST` | coleção | `201` | `400` dados inválidos |
+| Atualizar (completo) | `PUT` | item | `200` | `400` / `404` |
+| Atualizar (parcial) | `PATCH` | item | `200` | `400` / `404` |
+| Excluir | `DELETE` | item | `204` (sem corpo) | `400` registro em uso / `404` |
+
+Formato dos erros:
+
+- `404`: `{ "detail": "No Contrato matches the given query." }`
+- `400` de validação: um item por campo, ex. `{ "inquilino": ["Este campo é obrigatório."] }`
+- `400` ao excluir registro em uso: `{ "detail": "Não é possível excluir este registro porque existem outros registros vinculados a ele." }`
+
+### Campos de leitura
+
+Cada chave estrangeira é **enviada e recebida pelo id** (ex.: `"unidade": 1`). Para facilitar a leitura, a resposta traz também campos somente leitura:
+
+| Campo | Exemplo | Origem |
+|---|---|---|
+| `<relação>_descricao` | `"unidade_descricao": "Residencial Palmeiras - Kitnet 01"` | `__str__` do registro relacionado |
+| `status_display` / `categoria_display` | `"status_display": "Ativo"` | rótulo do `IntegerChoices` |
+| `status_atual` | `"status_atual": "Ocupada"` | campo calculado do model |
+
+Campos somente leitura são ignorados se forem enviados num `POST` ou `PUT`.
+
+### Exemplo: criar um contrato
+
+`POST /api/contratos/`
+
+```json
+{
+  "unidade": 2,
+  "inquilino": 2,
+  "data_inicio": "2027-01-01",
+  "data_termino": "2027-12-31",
+  "dia_vencimento": 5,
+  "valor_aluguel": "920.00",
+  "valor_caucao": "0.00",
+  "numero_parcelas_caucao": 1,
+  "status": 1
+}
+```
+
+Resposta `201 Created`:
+
+```json
+{
+  "id": 4,
+  "unidade": 2,
+  "unidade_descricao": "Residencial Palmeiras - Kitnet 02",
+  "inquilino": 2,
+  "inquilino_descricao": "Ana Souza",
+  "data_inicio": "2027-01-01",
+  "data_termino": "2027-12-31",
+  "dia_vencimento": 5,
+  "valor_aluguel": "920.00",
+  "valor_caucao": "0.00",
+  "numero_parcelas_caucao": 1,
+  "status": 1,
+  "status_display": "Ativo"
+}
+```
+
+### Valores dos campos com opções
+
+| Campo | Valores |
+|---|---|
+| `Contrato.status` | `1` Ativo, `2` Encerrado, `3` Rescindido |
+| `Despesa.categoria` | `1` IPTU, `2` Taxa de lixo, `3` Condomínio, `4` Água, `5` Energia, `6` Seguro, `7` Manutenção, `8` Outra |
+
+### Arquivos (boleto e comprovante)
+
+`Despesa.boleto`, `Despesa.comprovante` e `Pagamento.comprovante` são opcionais. Para enviar um arquivo, a requisição precisa ser `multipart/form-data` em vez de JSON. Na interface navegável do DRF, use a aba **HTML form**, que já envia nesse formato.
 
 ---
 
@@ -435,6 +525,20 @@ Em http://127.0.0.1:8000/admin/:
 4. Tentar cadastrar um segundo pagamento `2026-10` para o mesmo contrato: o Admin recusa (`UniqueConstraint`).
 5. Abrir a despesa "Taxa de coleta de lixo 2026", anexar um PDF no campo **boleto** e salvar: o link do arquivo abre o boleto.
 
+Resultado dos testes:
+
+![Unidades com status calculado](docs/img/etapa2-unidades-status.png)
+
+Contrato da Kitnet 01 alterado para **Rescindido** e a unidade passando a **Disponível**:
+
+![Contrato rescindido](docs/img/etapa2-contrato-rescindido.png)
+![Kitnet 01 disponível após a rescisão](docs/img/etapa2-unidade-disponivel-apos-rescisao.png)
+
+Status calculado dos pagamentos e pagamento duplicado recusado pelo banco:
+
+![Pagamentos com status calculado](docs/img/etapa2-pagamentos-status.png)
+![Pagamento duplicado recusado](docs/img/etapa2-pagamento-duplicado-recusado.png)
+
 **2.5 Consultas no Django Shell**
 
 ```bash
@@ -455,6 +559,131 @@ git add .
 git commit -m "feat(core): adiciona models, migrations, admin e dados iniciais"
 ```
 
+### Etapa 3 — API REST com Django REST Framework (Aula 20)
+
+**Objetivo:** expor os 7 models como API REST com CRUD completo, usando `ModelSerializer`, `ModelViewSet` e `DefaultRouter`.
+
+**3.1 Instalar o DRF**
+
+```bash
+uv add djangorestframework
+```
+
+Em `config/settings.py`, acrescentar `"rest_framework"` em `INSTALLED_APPS`, antes de `"core"`.
+
+**3.2 Serializers (`core/serializers.py`)**
+
+O serializer converte o model em JSON (leitura) e valida o JSON recebido antes de salvar (escrita). Um serializer por model, com os campos listados explicitamente em `Meta.fields`, como na Aula 20.
+
+Para que a resposta não mostre só números, cada relação ganha um campo **somente leitura** com o texto do registro relacionado, usando `source` (mesmo padrão do tutorial, seção 27, com `source="usuario.email"`):
+
+```python
+class ContratoSerializer(serializers.ModelSerializer):
+    unidade_descricao = serializers.CharField(source="unidade", read_only=True)
+    inquilino_descricao = serializers.CharField(source="inquilino", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = Contrato
+        fields = (
+            "id",
+            "unidade",
+            "unidade_descricao",
+            "inquilino",
+            "inquilino_descricao",
+            "data_inicio",
+            "data_termino",
+            "dia_vencimento",
+            "valor_aluguel",
+            "valor_caucao",
+            "numero_parcelas_caucao",
+            "status",
+            "status_display",
+        )
+```
+
+- `"unidade"` continua recebendo e devolvendo o **id**: é o que se envia no `POST`/`PUT`.
+- `"unidade_descricao"` usa `source="unidade"`: o DRF converte o objeto em texto com o `__str__` do model.
+- `get_status_display` é o método que o Django cria para campos com `choices`; devolve `"Ativo"` em vez de `1`.
+- Os status calculados (`status_atual`) entram como `serializers.CharField(read_only=True)`, lendo a `@property` do model.
+
+*Por que não `depth = 1`?* O `depth` mostra o objeto relacionado inteiro na leitura, mas faz o `POST`/`PUT` exigir o objeto aninhado em vez do id. Com o campo `_descricao` somente leitura, a mesma estrutura serve para ler e para escrever.
+
+**3.3 ViewSets (`core/views.py`)**
+
+```python
+class ContratoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    queryset = Contrato.objects.all()
+    serializer_class = ContratoSerializer
+```
+
+A `ModelViewSet` fornece as ações `list`, `retrieve`, `create`, `update`, `partial_update` e `destroy`, ou seja, `GET`, `POST`, `PUT`, `PATCH` e `DELETE`.
+
+**Tratamento da exclusão protegida.** Os models usam `on_delete=PROTECT`. Sem tratamento, um `DELETE` num inquilino que tem contrato faz o banco lançar `ProtectedError`, e a API responde **500**, como se fosse um defeito do servidor. Como a recusa é uma regra esperada, ela deve virar **400** com mensagem no formato `{ "detail": ... }`:
+
+```python
+class ExclusaoProtegidaMixin:
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": "Não é possível excluir este registro porque "
+                    "existem outros registros vinculados a ele."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+```
+
+O mixin entra nas ViewSets cujos registros podem ser referenciados por outros (Endereço, Imóvel, Unidade, Inquilino e Contrato). `super().destroy(...)` executa a exclusão normal da `ModelViewSet`; o `try/except` só intercepta o caso protegido.
+
+> O material não cobre este caso. A sobrescrita de método segue o mesmo princípio usado no tutorial para `create`, `update` e `get_queryset`.
+
+**3.4 Rotas (`config/urls.py`)**
+
+```python
+router = DefaultRouter()
+router.register("enderecos", EnderecoViewSet, basename="endereco")
+router.register("imoveis", ImovelViewSet, basename="imovel")
+router.register("unidades", UnidadeViewSet, basename="unidade")
+router.register("inquilinos", InquilinoViewSet, basename="inquilino")
+router.register("contratos", ContratoViewSet, basename="contrato")
+router.register("pagamentos", PagamentoViewSet, basename="pagamento")
+router.register("despesas", DespesaViewSet, basename="despesa")
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/", include(router.urls)),
+]
+```
+
+O `DefaultRouter` gera, para cada registro, a rota da coleção (`/api/contratos/`) e a rota do item (`/api/contratos/{id}/`), além da página `/api/` com a lista de todos os recursos.
+
+**3.5 Testes na interface navegável do DRF**
+
+```bash
+uv run python manage.py runserver
+```
+
+| # | Teste | Requisição | Esperado |
+|---|---|---|---|
+| 1 | Listar unidades | `GET /api/unidades/` | `200` com `status_atual` e `imovel_descricao` |
+| 2 | Detalhar contrato | `GET /api/contratos/1/` | `200` com `inquilino_descricao` e `status_display` |
+| 3 | Id inexistente | `GET /api/contratos/999/` | `404` com `detail` |
+| 4 | Criar contrato | `POST /api/contratos/` com o JSON da [seção 4](#exemplo-criar-um-contrato) | `201` |
+| 5 | Campo obrigatório | `POST /api/contratos/` sem `inquilino` | `400` com `{"inquilino": [...]}` |
+| 6 | Atualizar | `PUT /api/contratos/{id}/` mudando `valor_aluguel` | `200` |
+| 7 | Excluir | `DELETE /api/contratos/{id}/` (o criado no teste 4) | `204` |
+| 8 | Excluir protegido | `DELETE /api/inquilinos/1/` | `400` com `detail` (não `500`) |
+
+**Commit**
+
+```bash
+git add .
+git commit -m "feat(drf): cria endpoints REST das entidades"
+```
+
 ---
 
 ## 6. Checklist da Parte 8
@@ -462,8 +691,8 @@ git commit -m "feat(core): adiciona models, migrations, admin e dados iniciais"
 **Obrigatório**
 
 - [x] Escolhi um domínio próprio, diferente da simples reprodução da API de Produtos.
-- [ ] Implementei `GET` da coleção, `GET` individual, `POST`, `PUT` e `DELETE`.
-- [ ] Utilizei códigos HTTP adequados e respostas em JSON quando aplicável.
+- [x] Implementei `GET` da coleção, `GET` individual, `POST`, `PUT` e `DELETE`.
+- [x] Utilizei códigos HTTP adequados e respostas em JSON quando aplicável.
 - [x] Os dados estão persistidos em um banco de dados.
 - [ ] Defini e implementei validações no backend.
 - [ ] Implementei pelo menos uma regra de negócio além do CRUD.
