@@ -1591,6 +1591,10 @@ Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **R
 ![Renovação salva](docs/img/etapa8-teste05-renovacao-salva.png)
 ![Cobranças do contrato renovado](docs/img/etapa8-teste05-cobrancas-da-renovacao.png)
 
+**Teste 6 — contratos a vencer em 180 dias:** o contrato #1 termina em 28/02/2027, 130 dias depois do teste, com o atalho para renovar.
+
+![Contratos a vencer em 180 dias](docs/img/etapa8-teste06-contratos-a-vencer-180.png)
+
 **Teste 7 — mapa de ocupação:**
 
 ![Mapa de ocupação](docs/img/etapa8-teste07-mapa-de-ocupacao.png)
@@ -1799,6 +1803,10 @@ No [front-end](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue):
 **Teste 10 — front autenticado:** depois do login, o front volta para `/contratos`, e o menu mostra o usuário logado e o botão "Sair".
 
 ![Front autenticado](docs/img/etapa10-teste10-front-logado.png)
+
+**Teste 11 — sair:** depois de "Sair", voltar com o navegador leva de novo ao login, porque os tokens foram apagados.
+
+![Depois de sair](docs/img/etapa10-teste11-sair.png)
 
 **Limitação conhecida:** os arquivos enviados (boletos e comprovantes) são servidos pelo Django em `/media/` sem passar pela API, então quem tiver o link exato consegue abrir o arquivo sem login. A listagem que mostra esses links é protegida, mas o arquivo em si não. Protegê-lo exigiria uma rota própria de download que verificasse o token.
 
