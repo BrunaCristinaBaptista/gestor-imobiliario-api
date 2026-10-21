@@ -1553,6 +1553,7 @@ Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **R
 - **Mapa de ocupação:** cada imóvel com suas unidades coloridas pelo `status_atual` (Ocupada, Disponível, Manutenção) e, se ocupada, o inquilino e o fim do contrato.
 - **Rentabilidade por imóvel:** aluguéis recebidos menos despesas pagas no ano, por imóvel.
 - **Contratos a vencer:** janela ajustável (30, 90, 180 dias ou 1 ano) e atalho para renovar.
+- **A receber e a pagar:** os aluguéis a receber e as despesas a pagar são filtrados por período de vencimento, por padrão o mês atual, com atalhos para o mês anterior e o próximo. A opção "incluir vencidos antes do período" (marcada por padrão) mantém na lista o que já venceu e não foi pago, para que um atraso não suma do painel quando o mês vira.
 - **Aba única "Imóveis e Unidades":** endereços, imóveis e unidades numa só tela, com as unidades dentro do card de cada imóvel. Na API, continuam sendo três recursos com CRUD próprio.
 
 **8.4 Testes**
@@ -1597,6 +1598,10 @@ Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **R
 **Teste 8 — rentabilidade por imóvel em 2026:** Residencial Palmeiras com R$ 1.900,00 recebidos e R$ 1.240,00 gastos (resultado R$ 660,00); Casa Itinga com R$ 1.800,00 recebidos e R$ 980,00 gastos (resultado R$ 820,00).
 
 ![Rentabilidade por imóvel](docs/img/etapa8-teste08-rentabilidade.png)
+
+**Filtro de período (mês atual):** em outubro de 2026, o aluguel de 2026-10 do Carlos e a troca do chuveiro aparecem como atrasados; a taxa de lixo, já paga, não aparece.
+
+![Dashboard filtrado pelo mês atual](docs/img/etapa8-dashboard-periodo.png)
 
 **Commit (back-end)**
 
@@ -1762,6 +1767,39 @@ No [front-end](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue):
 
 > Nos testes 1 e 5, a sessão do Admin conta como login (`SessionAuthentication`). Por isso é preciso sair do Admin ou usar uma janela anônima para ver o `401`.
 
+**Teste 1 — recurso protegido sem login:** `401` e o cabeçalho `WWW-Authenticate: Bearer`, indicando que a API espera um token.
+
+![Contratos sem token](docs/img/etapa10-teste01-sem-token-401.png)
+
+**Teste 2 — login com senha errada:**
+
+![Login com senha errada](docs/img/etapa10-teste02-senha-errada-401.png)
+
+**Teste 3 — login com as credenciais de teste:** a resposta traz o `refresh` e o `access`.
+
+![Login com sucesso](docs/img/etapa10-teste03-login-200.png)
+
+**Teste 4 — o token identifica o usuário:** decodificado no jwt.io, o token traz `"user_id": "100"`, que é o id do usuário `avaliador`. No print foi colado o `refresh` (`token_type: refresh`); o `access` tem o mesmo `user_id`, com `token_type: access` e validade de 3 horas. O aviso "Invalid Signature" é esperado: a assinatura só pode ser conferida com a `SECRET_KEY` do projeto, que nunca deve ser colada em sites externos. Sem ela, ninguém consegue gerar um token válido, mesmo lendo o conteúdo.
+
+![Token decodificado no jwt.io](docs/img/etapa10-teste04-jwt-io.png)
+
+**Teste 6 — Swagger com o token:** o `access` informado em **jwtAuth** pelo botão Authorize, e o `GET /api/contratos/` devolvendo a lista.
+
+![Authorize no Swagger](docs/img/etapa10-teste06-swagger-authorize.png)
+![Contratos com token no Swagger](docs/img/etapa10-teste06-swagger-200.png)
+
+**Teste 8 — front sem login:** ao abrir `/contratos`, o front redireciona para o login e guarda a tela de origem em `?redirect=/contratos`.
+
+![Redirecionamento para o login](docs/img/etapa10-teste08-front-redireciona-login.png)
+
+**Teste 9 — front com senha errada:** a mensagem da API aparece no formulário.
+
+![Senha errada no front](docs/img/etapa10-teste09-front-senha-errada.png)
+
+**Teste 10 — front autenticado:** depois do login, o front volta para `/contratos`, e o menu mostra o usuário logado e o botão "Sair".
+
+![Front autenticado](docs/img/etapa10-teste10-front-logado.png)
+
 **Limitação conhecida:** os arquivos enviados (boletos e comprovantes) são servidos pelo Django em `/media/` sem passar pela API, então quem tiver o link exato consegue abrir o arquivo sem login. A listagem que mostra esses links é protegida, mas o arquivo em si não. Protegê-lo exigiria uma rota própria de download que verificasse o token.
 
 **Commit (back-end)**
@@ -1797,5 +1835,5 @@ git commit -m "feat(auth): adiciona autenticação JWT com SimpleJWT"
 - [ ] Publiquei a aplicação.
 - [x] Criei um frontend integrado à API.
 - [x] Implementei 3 ou mais models/tabelas relevantes para o domínio.
-- [ ] Implementei e testei login, autenticação e acesso a pelo menos um recurso protegido.
+- [x] Implementei e testei login, autenticação e acesso a pelo menos um recurso protegido.
 - [x] Removi do repositório credenciais, senhas e chaves privadas.
