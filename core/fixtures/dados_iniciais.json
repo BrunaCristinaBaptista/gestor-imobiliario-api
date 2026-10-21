@@ -1,0 +1,291 @@
+[
+  {
+    "model": "core.endereco",
+    "pk": 1,
+    "fields": {
+      "cep": "89245-000",
+      "estado": "SC",
+      "cidade": "Araquari",
+      "bairro": "Centro",
+      "rua": "Rua das Palmeiras",
+      "numero": "120"
+    }
+  },
+  {
+    "model": "core.endereco",
+    "pk": 2,
+    "fields": {
+      "cep": "89245-000",
+      "estado": "SC",
+      "cidade": "Araquari",
+      "bairro": "Itinga",
+      "rua": "Rua dos Ipês",
+      "numero": "45"
+    }
+  },
+  {
+    "model": "core.imovel",
+    "pk": 1,
+    "fields": {
+      "endereco": 1,
+      "nome_imovel": "Residencial Palmeiras",
+      "tipo_imovel": "Multifamiliar",
+      "foto_imovel": null
+    }
+  },
+  {
+    "model": "core.imovel",
+    "pk": 2,
+    "fields": {
+      "endereco": 2,
+      "nome_imovel": "Casa Itinga",
+      "tipo_imovel": "Unifamiliar",
+      "foto_imovel": null
+    }
+  },
+  {
+    "model": "core.unidade",
+    "pk": 1,
+    "fields": {
+      "imovel": 1,
+      "identificacao": "Kitnet 01",
+      "em_manutencao": false
+    }
+  },
+  {
+    "model": "core.unidade",
+    "pk": 2,
+    "fields": {
+      "imovel": 1,
+      "identificacao": "Kitnet 02",
+      "em_manutencao": false
+    }
+  },
+  {
+    "model": "core.unidade",
+    "pk": 3,
+    "fields": {
+      "imovel": 1,
+      "identificacao": "Kitnet 03",
+      "em_manutencao": true
+    }
+  },
+  {
+    "model": "core.unidade",
+    "pk": 4,
+    "fields": {
+      "imovel": 2,
+      "identificacao": "Casa Principal",
+      "em_manutencao": false
+    }
+  },
+  {
+    "model": "core.inquilino",
+    "pk": 1,
+    "fields": {
+      "nome": "Carlos",
+      "sobrenome": "Ferreira",
+      "cpf": "111.444.777-35",
+      "estado_civil": "Solteiro",
+      "profissao": "Técnico em informática",
+      "telefone": "(47) 99999-0001",
+      "email": "carlos@exemplo.com"
+    }
+  },
+  {
+    "model": "core.inquilino",
+    "pk": 2,
+    "fields": {
+      "nome": "Ana",
+      "sobrenome": "Souza",
+      "cpf": "222.555.888-46",
+      "estado_civil": "Casada",
+      "profissao": "Professora",
+      "telefone": "(47) 99999-0002",
+      "email": "ana@exemplo.com"
+    }
+  },
+  {
+    "model": "core.inquilino",
+    "pk": 3,
+    "fields": {
+      "nome": "Marcos",
+      "sobrenome": "Lima",
+      "cpf": "333.666.999-57",
+      "estado_civil": "",
+      "profissao": "",
+      "telefone": "(47) 99999-0003",
+      "email": ""
+    }
+  },
+  {
+    "model": "core.contrato",
+    "pk": 1,
+    "fields": {
+      "unidade": 1,
+      "inquilino": 1,
+      "data_inicio": "2026-03-01",
+      "data_termino": "2027-02-28",
+      "dia_vencimento": 10,
+      "valor_aluguel": "950.00",
+      "valor_caucao": "950.00",
+      "numero_parcelas_caucao": 2,
+      "status": 1
+    }
+  },
+  {
+    "model": "core.contrato",
+    "pk": 2,
+    "fields": {
+      "unidade": 2,
+      "inquilino": 2,
+      "data_inicio": "2026-01-01",
+      "data_termino": "2026-12-31",
+      "dia_vencimento": 5,
+      "valor_aluguel": "900.00",
+      "valor_caucao": "0.00",
+      "numero_parcelas_caucao": 1,
+      "status": 3
+    }
+  },
+  {
+    "model": "core.contrato",
+    "pk": 3,
+    "fields": {
+      "unidade": 4,
+      "inquilino": 3,
+      "data_inicio": "2026-06-01",
+      "data_termino": "2027-05-31",
+      "dia_vencimento": 15,
+      "valor_aluguel": "1800.00",
+      "valor_caucao": "1800.00",
+      "numero_parcelas_caucao": 1,
+      "status": 1
+    }
+  },
+  {
+    "model": "core.pagamento",
+    "pk": 1,
+    "fields": {
+      "contrato": 1,
+      "mes_referencia": "2026-08",
+      "data_vencimento": "2026-08-10",
+      "data_pagamento": "2026-08-09",
+      "valor_previsto": "950.00",
+      "valor_pago": "950.00",
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.pagamento",
+    "pk": 2,
+    "fields": {
+      "contrato": 1,
+      "mes_referencia": "2026-09",
+      "data_vencimento": "2026-09-10",
+      "data_pagamento": "2026-09-10",
+      "valor_previsto": "950.00",
+      "valor_pago": "950.00",
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.pagamento",
+    "pk": 3,
+    "fields": {
+      "contrato": 1,
+      "mes_referencia": "2026-10",
+      "data_vencimento": "2026-10-10",
+      "data_pagamento": null,
+      "valor_previsto": "950.00",
+      "valor_pago": null,
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.pagamento",
+    "pk": 4,
+    "fields": {
+      "contrato": 3,
+      "mes_referencia": "2026-10",
+      "data_vencimento": "2026-10-15",
+      "data_pagamento": "2026-10-14",
+      "valor_previsto": "1800.00",
+      "valor_pago": "1800.00",
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.pagamento",
+    "pk": 5,
+    "fields": {
+      "contrato": 3,
+      "mes_referencia": "2026-11",
+      "data_vencimento": "2026-11-15",
+      "data_pagamento": null,
+      "valor_previsto": "1800.00",
+      "valor_pago": null,
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.despesa",
+    "pk": 1,
+    "fields": {
+      "imovel": 1,
+      "unidade": null,
+      "descricao": "IPTU 2026 - parcela única",
+      "categoria": 1,
+      "valor": "1240.00",
+      "data_vencimento": "2026-03-20",
+      "data_pagamento": "2026-03-18",
+      "boleto": "",
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.despesa",
+    "pk": 2,
+    "fields": {
+      "imovel": 1,
+      "unidade": null,
+      "descricao": "Taxa de coleta de lixo 2026",
+      "categoria": 2,
+      "valor": "310.00",
+      "data_vencimento": "2026-11-30",
+      "data_pagamento": null,
+      "boleto": "",
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.despesa",
+    "pk": 3,
+    "fields": {
+      "imovel": 1,
+      "unidade": 3,
+      "descricao": "Troca do chuveiro da Kitnet 03",
+      "categoria": 7,
+      "valor": "185.50",
+      "data_vencimento": "2026-10-05",
+      "data_pagamento": null,
+      "boleto": "",
+      "comprovante": ""
+    }
+  },
+  {
+    "model": "core.despesa",
+    "pk": 4,
+    "fields": {
+      "imovel": 2,
+      "unidade": null,
+      "descricao": "IPTU 2026 - parcela única",
+      "categoria": 1,
+      "valor": "980.00",
+      "data_vencimento": "2026-03-20",
+      "data_pagamento": "2026-03-20",
+      "boleto": "",
+      "comprovante": ""
+    }
+  }
+]

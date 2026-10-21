@@ -82,3 +82,8 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
+
+# Arquivos enviados pelo usuário (boletos e comprovantes)
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
