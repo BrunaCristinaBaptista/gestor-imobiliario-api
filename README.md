@@ -956,6 +956,10 @@ Teste 7, novo contrato aceito na unidade liberada:
 
 ![Novo contrato criado](docs/img/etapa4-teste07-novo-contrato-201.png)
 
+Teste 8, reativação do contrato #1 recusada por conflito com o novo contrato #4:
+
+![Reativação recusada](docs/img/etapa4-teste08-reativacao-400.png)
+
 Testes 9, 11 e 12, validações de CPF, vigência e pagamento:
 
 ![CPF inválido](docs/img/etapa4-teste09-cpf-invalido-400.png)
@@ -1143,6 +1147,38 @@ Foi acrescentado também o método `get_paginated_response_schema`, que não est
 | 11 | `GET /api/unidades/?page_size=101` | `400` em `page_size` |
 | 12 | `GET /api/contratos/?valor_minimo=abc` | `400` em `valor_minimo` |
 | 13 | `GET /api/contratos/?status=1&search=residencial&ordering=-data_inicio&page_size=5` | filtros, busca, ordenação e paginação combinados |
+
+Resultados:
+
+Teste 1, listagem no formato `{ page, page_size, total_pages, results }`:
+
+![Listagem paginada](docs/img/etapa5-teste01-paginacao.png)
+
+Teste 4, busca por `carlos`:
+
+![Busca textual](docs/img/etapa5-teste04-busca.png)
+
+Teste 5, ordenação do maior aluguel para o menor:
+
+![Ordenação decrescente](docs/img/etapa5-teste05-ordenacao.png)
+
+Teste 6, boletos em aberto ordenados pelo vencimento:
+
+![Despesas em aberto](docs/img/etapa5-teste06-despesas-em-aberto.png)
+
+Testes 8, 9 e 11, paginação: página 2 com 2 itens, página além do limite e `page_size` acima de 100:
+
+![Página 2](docs/img/etapa5-teste08-pagina-2.png)
+![Página além do limite](docs/img/etapa5-teste09-pagina-alem-do-limite.png)
+![page_size acima de 100](docs/img/etapa5-teste11-page-size-101.png)
+
+Teste 13, filtro, busca, ordenação e paginação combinados:
+
+![Consulta combinada](docs/img/etapa5-teste13-combinado.png)
+
+A interface navegável do DRF também oferece o botão **Filtros**, que monta a URL com os filtros, a busca e a ordenação disponíveis:
+
+![Botão Filtros do DRF](docs/img/etapa5-filtros-interface-drf.png)
 
 **Commit**
 
