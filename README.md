@@ -1398,9 +1398,9 @@ npm run dev
 | # | Tela | Ação | Esperado |
 |---|---|---|---|
 | 1 | Dashboard | abrir | indicadores e gráficos com os dados de exemplo; Kitnet 01 contando como ocupada |
-| 2 | Unidades | abrir | Kitnet 01 *Ocupada*, Kitnet 02 *Disponível*, Kitnet 03 *Manutenção* |
+| 2 | Imóveis | abrir | Kitnet 01 *Ocupada*, Kitnet 02 *Disponível*, Kitnet 03 *Manutenção* |
 | 3 | Contratos | novo contrato na Kitnet 01 de 01/12/2026 a 30/11/2027 | mensagem de sobreposição dentro do formulário |
-| 4 | Contratos | "Rescindir" no contrato #1 e voltar a Unidades | Kitnet 01 *Disponível* |
+| 4 | Contratos | "Rescindir" no contrato #1 e voltar a Imóveis | Kitnet 01 *Disponível* |
 | 5 | Contratos | "Reativar" no contrato #1 | volta a *Ativo* (sem conflito) |
 | 6 | Inquilinos | novo inquilino com CPF `123.456.789-00` | mensagem "CPF: CPF inválido." |
 | 7 | Financeiro | nova despesa com boleto em PDF | despesa *Em aberto* com link "boleto" |
@@ -1476,6 +1476,7 @@ Na tela de contratos e no painel "Contratos a vencer" do dashboard, o botão **R
 - **Mapa de ocupação:** cada imóvel com suas unidades coloridas pelo `status_atual` (Ocupada, Disponível, Manutenção) e, se ocupada, o inquilino e o fim do contrato.
 - **Rentabilidade por imóvel:** aluguéis recebidos menos despesas pagas no ano, por imóvel.
 - **Contratos a vencer:** janela ajustável (30, 90, 180 dias ou 1 ano) e atalho para renovar.
+- **Aba única "Imóveis e Unidades":** endereços, imóveis e unidades numa só tela, com as unidades dentro do card de cada imóvel. Na API, continuam sendo três recursos com CRUD próprio.
 
 **8.4 Testes**
 
