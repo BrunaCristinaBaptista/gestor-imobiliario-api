@@ -1,0 +1,13 @@
+[project]
+name = "gestor-imobiliario-api"
+version = "0.1.0"
+description = "API REST para gestão de imóveis, inquilinos, contratos e despesas"
+readme = "README.md"
+authors = [
+    { name = "Bruna Cristina Baptista", email = "brunacristinakatobaptista@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.1.2",
+    "python-dotenv>=1.2.4",
+]
