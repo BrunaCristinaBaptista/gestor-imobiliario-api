@@ -1322,6 +1322,91 @@ git add .
 git commit -m "docs(api): adiciona documentação OpenAPI e Swagger"
 ```
 
+### Etapa 7 — Front-end Vue integrado à API (tutorial, seção 9)
+
+**Objetivo:** permitir que o front-end Vue ([gestor-imobiliario-vue](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue)) consuma a API.
+
+**7.1 CORS no back-end**
+
+O navegador bloqueia requisições de uma origem (o Vue em `http://localhost:5173`) para outra (a API em `http://127.0.0.1:8000`), a menos que a API autorize. Isso é o **CORS**. A configuração segue a seção 9 do tutorial:
+
+```bash
+uv add django-cors-headers
+```
+
+Em `config/settings.py`:
+
+```python
+INSTALLED_APPS = [
+    ...
+    "corsheaders",
+    "rest_framework",
+    ...
+]
+
+MIDDLEWARE = [
+    ...
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    ...
+]
+
+CORS_ALLOW_ALL_ORIGINS = True
+```
+
+O `CorsMiddleware` precisa vir **antes** do `CommonMiddleware`. `CORS_ALLOW_ALL_ORIGINS = True` é adequado para desenvolvimento; numa publicação, o certo é listar só a origem do front-end em `CORS_ALLOWED_ORIGINS`.
+
+**7.2 Adaptações no front-end**
+
+O front-end já existia, mas tinha sido feito para a versão antiga da API. As mudanças estão descritas no [README do front-end](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue). As principais:
+
+- **Paginação:** as telas usam `results` e navegam pelas páginas; selects e dashboard buscam todas as páginas (`buscarTodos`).
+- **Contrato com inquilino** (FK obrigatória) e status como número (`1`, `2`, `3`), exibindo `status_display`.
+- **Status calculados** (`status_atual`) exibidos, e não mais editados: a unidade só tem a opção "em manutenção".
+- **Mensagens de erro da API na tela**, inclusive as regras de negócio (ex.: contrato sobreposto), em vez de um `alert` genérico.
+- **Filtros, busca e ordenação** da Etapa 5 usados nas telas.
+- **Upload de boleto e comprovante** com `FormData` (`multipart/form-data`).
+- Correção de um erro de sintaxe que impedia a tela de inquilinos de abrir, e remoção dos arquivos de exemplo do template do Vite.
+
+**7.3 Como executar os dois juntos**
+
+Em um terminal, a API:
+
+```bash
+cd gestor-imobiliario-api
+uv run python manage.py runserver
+```
+
+Em outro terminal, o front-end:
+
+```bash
+cd gestor-imobiliario-vue
+npm install
+npm run dev
+```
+
+**7.4 Testes**
+
+| # | Tela | Ação | Esperado |
+|---|---|---|---|
+| 1 | Dashboard | abrir | indicadores e gráficos com os dados de exemplo; Kitnet 01 contando como ocupada |
+| 2 | Unidades | abrir | Kitnet 01 *Ocupada*, Kitnet 02 *Disponível*, Kitnet 03 *Manutenção* |
+| 3 | Contratos | novo contrato na Kitnet 01 de 01/12/2026 a 30/11/2027 | mensagem de sobreposição dentro do formulário |
+| 4 | Contratos | "Rescindir" no contrato #1 e voltar a Unidades | Kitnet 01 *Disponível* |
+| 5 | Contratos | "Reativar" no contrato #1 | volta a *Ativo* (sem conflito) |
+| 6 | Inquilinos | novo inquilino com CPF `123.456.789-00` | mensagem "CPF: CPF inválido." |
+| 7 | Financeiro | nova despesa com boleto em PDF | despesa *Em aberto* com link "boleto" |
+| 8 | Financeiro | "Pagar" na despesa | status *Paga* |
+| 9 | Inquilinos | excluir Carlos Ferreira | mensagem de registro vinculado (não exclui) |
+| 10 | qualquer | parar a API e recarregar | mensagem "Não foi possível conectar à API" |
+
+**Commit (back-end)**
+
+```bash
+git add .
+git commit -m "feat(cors): habilita CORS para o front-end"
+```
+
 ---
 
 ## 6. Checklist da Parte 8
