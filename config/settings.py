@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "django_filters",
     "core",
 ]
 
@@ -83,6 +84,20 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
+
+
+REST_FRAMEWORK = {
+    # Filtros (Aula 23), busca e ordenação (Aula 24) valem para todas as ViewSets.
+    # Cada ViewSet define seus campos com filterset_class, search_fields e ordering_fields.
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
+    # Paginação (Aula 25)
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.PaginacaoPadrao",
+    "PAGE_SIZE": 10,
+}
 
 # Arquivos enviados pelo usuário (boletos e comprovantes)
 MEDIA_URL = "media/"

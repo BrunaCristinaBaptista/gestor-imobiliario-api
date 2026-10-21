@@ -245,7 +245,7 @@ Todas as rotas ficam sob `/api/` e recebem e devolvem **JSON**. A documentação
 
 | Operação | Método | URL | Sucesso | Erros |
 |---|---|---|---|---|
-| Listar | `GET` | coleção | `200` | — |
+| Listar | `GET` | coleção | `200` (paginado) | `400` parâmetro de consulta inválido |
 | Detalhar | `GET` | item | `200` | `404` id inexistente |
 | Criar | `POST` | coleção | `201` | `400` dados inválidos |
 | Atualizar (completo) | `PUT` | item | `200` | `400` / `404` |
@@ -257,6 +257,50 @@ Formato dos erros:
 - `404`: `{ "detail": "No Contrato matches the given query." }`
 - `400` de validação ou de regra de negócio: um item por campo, ex. `{ "inquilino": ["Este campo é obrigatório."] }` ou `{ "unidade": ["Esta unidade já tem o contrato #1 ativo..."] }`
 - `400` ao excluir registro em uso: `{ "detail": "Não é possível excluir este registro porque existem outros registros vinculados a ele." }`
+
+### Consultas: filtro, busca, ordenação e paginação
+
+Todas as coleções aceitam os mesmos parâmetros de consulta, que podem ser combinados:
+
+| Parâmetro | Exemplo | Efeito |
+|---|---|---|
+| filtros (por recurso, tabela abaixo) | `?status=1&valor_minimo=900` | condições exatas ou por faixa |
+| `search` | `?search=kitnet` | busca parcial, sem diferenciar maiúsculas, nos campos de texto do recurso |
+| `ordering` | `?ordering=-valor_aluguel` | ordena pelo campo; `-` para decrescente; vários campos separados por vírgula |
+| `page` | `?page=2` | número da página (padrão `1`) |
+| `page_size` | `?page_size=20` | itens por página (padrão `10`, máximo `100`) |
+
+A resposta das listagens é paginada, no mesmo formato das Partes 1 a 6 da disciplina:
+
+```json
+{
+  "page": 1,
+  "page_size": 10,
+  "total_pages": 1,
+  "results": [ ... ]
+}
+```
+
+A ordem de aplicação é: filtros → busca → ordenação → paginação. Uma página além da última devolve `200` com `results` vazio; `page=0` ou `page_size` acima de 100 devolvem `400`.
+
+| Recurso | Filtros | `search` procura em | `ordering` aceita |
+|---|---|---|---|
+| Endereços | `estado`, `cidade` | rua, bairro, cidade, CEP | `id`, `cidade`, `bairro`, `rua` |
+| Imóveis | `tipo_imovel`, `cidade`, `endereco` | nome, tipo, rua, bairro, cidade | `id`, `nome_imovel`, `tipo_imovel` |
+| Unidades | `imovel`, `em_manutencao` | identificação, nome do imóvel | `id`, `identificacao`, `imovel__nome_imovel` |
+| Inquilinos | — | nome, sobrenome, CPF, e-mail, telefone | `id`, `nome`, `sobrenome` |
+| Contratos | `status`, `unidade`, `inquilino`, `imovel`, `valor_minimo`, `valor_maximo` | nome e sobrenome do inquilino, unidade, imóvel | `id`, `data_inicio`, `data_termino`, `valor_aluguel`, `status` |
+| Pagamentos | `contrato`, `mes_referencia`, `em_aberto`, `vencimento_minimo`, `vencimento_maximo` | mês, nome do inquilino, unidade | `id`, `mes_referencia`, `data_vencimento`, `data_pagamento`, `valor_previsto` |
+| Despesas | `imovel`, `unidade`, `categoria`, `em_aberto`, `valor_minimo`, `valor_maximo`, `vencimento_minimo`, `vencimento_maximo` | descrição, imóvel, unidade | `id`, `data_vencimento`, `valor`, `categoria`, `descricao` |
+
+Exemplos:
+
+- Boletos em aberto de um imóvel, do vencimento mais próximo ao mais distante: `GET /api/despesas/?imovel=1&em_aberto=true&ordering=data_vencimento`
+- Aluguéis atrasados ou pendentes: `GET /api/pagamentos/?em_aberto=true`
+- Contratos ativos com aluguel entre R$ 900 e R$ 2.000, do maior para o menor: `GET /api/contratos/?status=1&valor_minimo=900&valor_maximo=2000&ordering=-valor_aluguel`
+- IPTU de 2026: `GET /api/despesas/?categoria=1&vencimento_minimo=2026-01-01&vencimento_maximo=2026-12-31`
+
+> O `status_atual` (Ocupada, Atrasado, Em aberto…) é calculado em Python, não é uma coluna do banco, por isso não pode ser usado como filtro. Para pagamentos e despesas, o filtro `em_aberto` cobre a necessidade: ele consulta se `data_pagamento` está vazia.
 
 ### Campos de leitura
 
@@ -943,6 +987,170 @@ git add .
 git commit -m "feat(api): adiciona validações e regras de negócio"
 ```
 
+### Etapa 5 — Filtros, busca, ordenação e paginação (Aulas 23, 24 e 25)
+
+**Objetivo:** permitir consultar os dados além do `GET` da coleção, com os mesmos parâmetros e o mesmo formato de paginação construídos nas Partes 1 a 6 da disciplina.
+
+**5.1 Instalar o django-filter**
+
+```bash
+uv add django-filter
+```
+
+Em `config/settings.py`, acrescentar `"django_filters"` em `INSTALLED_APPS` e criar o bloco `REST_FRAMEWORK`:
+
+```python
+REST_FRAMEWORK = {
+    # Filtros (Aula 23), busca e ordenação (Aula 24) valem para todas as ViewSets.
+    # Cada ViewSet define seus campos com filterset_class, search_fields e ordering_fields.
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
+    # Paginação (Aula 25)
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.PaginacaoPadrao",
+    "PAGE_SIZE": 10,
+}
+```
+
+Na Aula 24, os três backends são declarados em cada ViewSet (`filter_backends = (...)`). Como aqui são 7 ViewSets, eles foram declarados uma vez só, no `DEFAULT_FILTER_BACKENDS` (a mesma chave usada na Aula 23). O efeito é o mesmo.
+
+**5.2 Filtros (`core/filters.py`)**
+
+Um `FilterSet` por recurso, como o `ProdutoFilter` da Aula 23:
+
+```python
+class DespesaFilter(filters.FilterSet):
+    em_aberto = filters.BooleanFilter(field_name="data_pagamento", lookup_expr="isnull")
+    valor_minimo = filters.NumberFilter(field_name="valor", lookup_expr="gte")
+    valor_maximo = filters.NumberFilter(field_name="valor", lookup_expr="lte")
+    vencimento_minimo = filters.DateFilter(field_name="data_vencimento", lookup_expr="gte")
+    vencimento_maximo = filters.DateFilter(field_name="data_vencimento", lookup_expr="lte")
+
+    class Meta:
+        model = Despesa
+        fields = (
+            "imovel",
+            "unidade",
+            "categoria",
+            "em_aberto",
+            "valor_minimo",
+            "valor_maximo",
+            "vencimento_minimo",
+            "vencimento_maximo",
+        )
+```
+
+- `field_name` é a coluna do banco e `lookup_expr` é a comparação: `gte` (maior ou igual), `lte` (menor ou igual), `iexact` (igual, sem diferenciar maiúsculas), `isnull` (é nulo).
+- `em_aberto=true` vira `data_pagamento IS NULL`: é assim que se encontram os **boletos em aberto**.
+- Campos listados só em `Meta.fields` (ex.: `imovel`, `categoria`) viram filtros exatos automaticamente.
+- Relações também podem ser filtradas: `filters.NumberFilter(field_name="unidade__imovel")` filtra contratos pelo imóvel da unidade.
+- Valor inválido (ex.: `?valor_minimo=abc`) devolve `400` com a mensagem do campo.
+
+**5.3 Busca e ordenação (nas ViewSets)**
+
+```python
+class ContratoViewSet(ExclusaoProtegidaMixin, ModelViewSet):
+    queryset = Contrato.objects.all()
+    serializer_class = ContratoSerializer
+    filterset_class = ContratoFilter
+    search_fields = (
+        "inquilino__nome",
+        "inquilino__sobrenome",
+        "unidade__identificacao",
+        "unidade__imovel__nome_imovel",
+    )
+    ordering_fields = ("id", "data_inicio", "data_termino", "valor_aluguel", "status")
+    ordering = ("id",)
+```
+
+- `search_fields`: campos de **texto** consultados pelo `?search=`, com busca parcial e sem diferenciar maiúsculas. Aceita campos de outras tabelas com `__` (ex.: `inquilino__nome`). Campos numéricos ficam de fora, pelo mesmo motivo do `estoque` na Aula 15.
+- `ordering_fields`: campos permitidos no `?ordering=`.
+- `ordering`: ordem padrão. Também é necessária para a paginação: sem ordem definida, a mesma consulta pode trazer os registros em ordem diferente e repetir itens entre páginas.
+
+**5.4 Paginação (`core/pagination.py`)**
+
+A classe é a da Aula 25 (renomeada para `PaginacaoPadrao`), que devolve `{ page, page_size, total_pages, results }` em vez do formato padrão do DRF (`count`, `next`, `previous`, `results`):
+
+```python
+class PaginacaoPadrao(PageNumberPagination):
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+    def paginate_queryset(self, queryset, request, view=None):
+        self.request = request
+        page_size_param = request.query_params.get(self.page_size_query_param)
+        if page_size_param is not None:
+            try:
+                if int(page_size_param) > self.max_page_size:
+                    raise ValidationError(
+                        {"page_size": "O campo page_size não pode passar de 100."}
+                    )
+            except ValueError:
+                pass
+
+        page_size = self.get_page_size(request)
+        if page_size is None:
+            return None
+
+        self.paginator = self.django_paginator_class(queryset, page_size)
+        try:
+            self.page_number = int(request.query_params.get(self.page_query_param, 1))
+        except (TypeError, ValueError):
+            raise ValidationError({"page": "Informe um número inteiro positivo."})
+
+        if self.page_number < 1:
+            raise ValidationError({"page": "Informe um número inteiro positivo."})
+
+        self.total_pages = ceil(self.paginator.count / page_size)
+        if self.total_pages == 0 or self.page_number > self.total_pages:
+            self.page = None
+            return []
+
+        self.page = self.paginator.page(self.page_number)
+        return list(self.page)
+
+    def get_paginated_response(self, data):
+        return Response(
+            {
+                "page": self.page_number,
+                "page_size": self.paginator.per_page,
+                "total_pages": self.total_pages,
+                "results": data,
+            }
+        )
+```
+
+> O código da Aula 25, no material, tem um erro de indentação no bloco que valida o `page_size`; aqui ele foi corrigido sem mudar a lógica.
+
+Foi acrescentado também o método `get_paginated_response_schema`, que não está na Aula 25. Ele descreve esse formato para a documentação OpenAPI; sem ele, o Swagger da Etapa 6 mostraria o formato padrão do DRF (`count`, `next`…), diferente do que a API realmente devolve.
+
+**5.5 Testes**
+
+| # | Requisição | Esperado |
+|---|---|---|
+| 1 | `GET /api/contratos/` | `200` com `page`, `page_size`, `total_pages`, `results` |
+| 2 | `GET /api/contratos/?status=1` | só contratos ativos |
+| 3 | `GET /api/contratos/?valor_minimo=1000` | só aluguéis a partir de R$ 1.000 |
+| 4 | `GET /api/contratos/?search=carlos` | contrato do Carlos Ferreira |
+| 5 | `GET /api/contratos/?ordering=-valor_aluguel` | do maior aluguel para o menor |
+| 6 | `GET /api/despesas/?em_aberto=true&ordering=data_vencimento` | boletos não pagos, do vencimento mais próximo |
+| 7 | `GET /api/pagamentos/?contrato=1&ordering=-mes_referencia` | pagamentos do contrato 1, do mês mais recente |
+| 8 | `GET /api/unidades/?page_size=2&page=2` | 2 unidades, `page: 2`, `total_pages: 2` |
+| 9 | `GET /api/unidades/?page=99` | `200` com `results: []` |
+| 10 | `GET /api/unidades/?page=0` | `400` em `page` |
+| 11 | `GET /api/unidades/?page_size=101` | `400` em `page_size` |
+| 12 | `GET /api/contratos/?valor_minimo=abc` | `400` em `valor_minimo` |
+| 13 | `GET /api/contratos/?status=1&search=residencial&ordering=-data_inicio&page_size=5` | filtros, busca, ordenação e paginação combinados |
+
+**Commit**
+
+```bash
+git add .
+git commit -m "feat(api): adiciona filtros, busca, ordenação e paginação"
+```
+
 ---
 
 ## 6. Checklist da Parte 8
@@ -955,7 +1163,7 @@ git commit -m "feat(api): adiciona validações e regras de negócio"
 - [x] Os dados estão persistidos em um banco de dados.
 - [x] Defini e implementei validações no backend.
 - [x] Implementei pelo menos uma regra de negócio além do CRUD.
-- [ ] Implementei filtro, busca textual, ordenação e paginação.
+- [x] Implementei filtro, busca textual, ordenação e paginação.
 - [ ] Documentei a API e as instruções de execução.
 - [x] Versionei o código em um repositório Git.
 - [ ] Informei todas as URLs necessárias para avaliação.
