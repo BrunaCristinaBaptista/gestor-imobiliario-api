@@ -1408,6 +1408,34 @@ npm run dev
 | 9 | Inquilinos | excluir Carlos Ferreira | mensagem de registro vinculado (não exclui) |
 | 10 | qualquer | parar a API e recarregar | mensagem "Não foi possível conectar à API" |
 
+> Os prints desta etapa foram feitos antes da Etapa 8, quando endereços, imóveis e unidades ainda tinham abas separadas no menu.
+
+**Teste 2 — status das unidades calculado pela API:** Kitnet 01 e Casa Principal ocupadas, Kitnet 02 disponível, Kitnet 03 em manutenção.
+
+![Status das unidades no front-end](docs/img/etapa7-teste02-status-das-unidades.png)
+
+**Teste 3 — regra de sobreposição exibida no formulário:** ao alterar o término do contrato #1 para uma data que invade o contrato #5 da mesma unidade, a mensagem da API aparece dentro do formulário, e o contrato não é salvo.
+
+![Sobreposição no formulário de contrato](docs/img/etapa7-teste03-sobreposicao-no-formulario.png)
+
+**Teste 4 — rescindir o contrato #1 libera a unidade:** o contrato passa a *Rescindido* e a Kitnet 01 passa a *Disponível*, sem nenhuma edição na unidade.
+
+![Contrato #1 rescindido](docs/img/etapa7-teste04-contrato-rescindido.png)
+![Kitnet 01 disponível](docs/img/etapa7-teste04-kitnet-disponivel.png)
+
+**Teste 5 — reativar o contrato #1:** volta a *Ativo* (não há conflito de datas) e a Kitnet 01 volta a *Ocupada*.
+
+![Contrato #1 reativado](docs/img/etapa7-teste05-contrato-reativado.png)
+![Kitnet 01 ocupada novamente](docs/img/etapa7-teste05-kitnet-ocupada.png)
+
+**Teste 7 — despesa com boleto:** a Taxa do Lixo aparece *Em aberto*, com o link para o boleto enviado. Na mesma tela, os aluguéis com status *Pago*, *Atrasado* e *Pendente*.
+
+![Financeiro com boleto anexado](docs/img/etapa7-teste07-financeiro-boleto.png)
+
+**Teste 9 — exclusão protegida:** o Carlos Ferreira tem contrato, então a API recusa a exclusão e o front mostra a mensagem.
+
+![Exclusão de inquilino com contrato](docs/img/etapa7-teste09-inquilino-vinculado.png)
+
 **Commit (back-end)**
 
 ```bash
@@ -1531,9 +1559,28 @@ Indicadores calculados no front a partir do histórico: total recebido, valor em
 | # | Onde | Ação | Esperado |
 |---|---|---|---|
 | 1 | API | `GET /api/pagamentos/?inquilino=1` | só os pagamentos do Carlos Ferreira (contrato #1) |
-| 2 | API | `GET /api/pagamentos/?inquilino=999` | `200` com `results: []` |
-| 3 | Front | Inquilinos → Ficha do Carlos Ferreira | contrato #1 e os pagamentos de 2026-08 a 2026-10; o de 2026-10 destacado como *Atrasado* |
-| 4 | Front | Contratos → clicar no nome de um inquilino | abre a ficha dele |
+| 2 | API | `GET /api/pagamentos/?inquilino=3` | só os pagamentos do Marcos Lima (contrato #3) |
+| 3 | API | `GET /api/pagamentos/?inquilino=999` | `200` com `results: []` |
+| 4 | Front | Inquilinos → Ficha do Carlos Ferreira | contrato #1 e os pagamentos de 2026-08 a 2026-10; o de 2026-10 destacado como *Atrasado* |
+| 5 | Front | Contratos → clicar no nome de um inquilino | abre a ficha dele |
+| 6 | Front | Inquilinos → Ficha da Ana Souza | dois contratos (um ativo, um rescindido) e nenhum pagamento |
+
+**Testes 1 e 2 — filtro por inquilino na API:**
+
+![Pagamentos do inquilino 1](docs/img/etapa9-teste01-pagamentos-inquilino-1.png)
+![Pagamentos do inquilino 3](docs/img/etapa9-teste02-pagamentos-inquilino-3.png)
+
+**Botão "Ficha" na tela de inquilinos:**
+
+![Botão Ficha](docs/img/etapa9-botao-ficha.png)
+
+**Teste 4 — ficha do Carlos Ferreira:** o pagamento de 2026-10 aparece em vermelho, com os dias de atraso contados até hoje, e entra no indicador "Em atraso agora".
+
+![Ficha do Carlos Ferreira](docs/img/etapa9-teste04-ficha-carlos.png)
+
+**Teste 6 — ficha da Ana Souza:** sem pagamentos, a pontualidade aparece como "—" em vez de um percentual sem sentido.
+
+![Ficha da Ana Souza](docs/img/etapa9-teste06-ficha-ana.png)
 
 **Commit (back-end)**
 
@@ -1566,7 +1613,7 @@ git commit -m "feat(api): adiciona filtro de pagamentos por inquilino"
 **Opcional**
 
 - [ ] Publiquei a aplicação.
-- [ ] Criei um frontend integrado à API.
+- [x] Criei um frontend integrado à API.
 - [x] Implementei 3 ou mais models/tabelas relevantes para o domínio.
 - [ ] Implementei e testei login, autenticação e acesso a pelo menos um recurso protegido.
 - [x] Removi do repositório credenciais, senhas e chaves privadas.
