@@ -8,6 +8,20 @@ API REST para uma pessoa gerenciar os próprios imóveis: endereços, imóveis, 
 - **Front-end:** Vue 3 — repositório [gestor-imobiliario-vue](https://github.com/BrunaCristinaBaptista/gestor-imobiliario-vue)
 - **Autora:** Bruna Cristina Baptista (trabalho individual)
 
+## Aplicação publicada
+
+| O quê | URL |
+|---|---|
+| **Front-end (sistema)** | https://gestor-imobiliario-app.onrender.com |
+| API | https://gestor-imobiliario-24w8.onrender.com/api/ |
+| Swagger | https://gestor-imobiliario-24w8.onrender.com/api/docs/ |
+| Redoc | https://gestor-imobiliario-24w8.onrender.com/api/redoc/ |
+| Django Admin | https://gestor-imobiliario-24w8.onrender.com/admin/ |
+
+**Credenciais de teste:** usuário `avaliador`, senha `avaliador123` (conta fictícia, sem acesso ao Admin).
+
+> Hospedagem gratuita: a API "dorme" depois de 15 minutos sem acesso, e o primeiro acesso seguinte pode levar cerca de 1 minuto. Se o login do front mostrar "Não foi possível conectar à API", aguarde e tente de novo.
+
 ---
 
 ## Sumário
@@ -2056,7 +2070,12 @@ Depois, comentar a `DATABASE_URL` no `.env` para voltar ao SQLite local.
 
 A regra de rewrite faz o endereço de uma tela (ex.: `/contratos`) abrir o `index.html`, onde o Vue Router decide a tela.
 
-**13.7 Limitações do plano gratuito**
+**13.7 Endereços publicados**
+
+- API: https://gestor-imobiliario-24w8.onrender.com (o Render acrescentou `-24w8` porque o nome `gestor-imobiliario` já estava em uso; por isso `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` usam esse endereço)
+- Front-end: https://gestor-imobiliario-app.onrender.com
+
+**13.8 Limitações do plano gratuito**
 
 - **Render:** o serviço "dorme" depois de 15 minutos sem acesso; o primeiro acesso seguinte leva cerca de 1 minuto.
 - **Supabase:** o projeto é pausado depois de 7 dias sem uso; pode ser retomado no painel, com os dados intactos.
@@ -2083,7 +2102,7 @@ git commit -m "feat(deploy): prepara publicação com Supabase, Cloudinary e Ren
 - [x] Implementei filtro, busca textual, ordenação e paginação.
 - [x] Documentei a API e as instruções de execução.
 - [x] Versionei o código em um repositório Git.
-- [ ] Informei todas as URLs necessárias para avaliação.
+- [x] Informei todas as URLs necessárias para avaliação.
 - [ ] Preparei a demonstração e a explicação do projeto para a apresentação obrigatória.
 - [ ] Realizei a entrega pelo SIGAA, enviando o link do repositório GitHub do projeto.
 - [ ] Estou preparado para apresentar o projeto em sala de aula, para toda a turma, após a data de entrega.
@@ -2091,7 +2110,7 @@ git commit -m "feat(deploy): prepara publicação com Supabase, Cloudinary e Ren
 
 **Opcional**
 
-- [ ] Publiquei a aplicação.
+- [x] Publiquei a aplicação.
 - [x] Criei um frontend integrado à API.
 - [x] Implementei 3 ou mais models/tabelas relevantes para o domínio.
 - [x] Implementei e testei login, autenticação e acesso a pelo menos um recurso protegido.
