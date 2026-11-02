@@ -23,7 +23,19 @@ API REST para uma pessoa gerenciar os próprios imóveis: endereços, imóveis, 
 
 ## 1. Como executar
 
-Pré-requisitos: [uv](https://docs.astral.sh/uv/) e Git.
+Pré-requisitos: Git e [uv](https://docs.astral.sh/uv/). Não é preciso instalar o Python à parte: o `uv sync` baixa a versão que o projeto usa (3.14).
+
+Se o uv não estiver instalado (`uv --version` não funciona), no Linux:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+uv --version
+```
+
+O `source` faz o terminal atual encontrar o uv; os próximos terminais já o encontram sozinhos.
+
+Depois, clone e instale as dependências:
 
 ```bash
 git clone https://github.com/BrunaCristinaBaptista/gestor-imobiliario-api.git
@@ -32,10 +44,18 @@ uv sync
 cp .env_exemplo .env
 ```
 
-Gere uma chave secreta e cole no campo `SECRET_KEY` do arquivo `.env`:
+Gere uma chave secreta:
 
 ```bash
 uv run python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Cole a chave no campo `SECRET_KEY` do arquivo `.env`, **entre aspas simples**, porque ela pode ter caracteres como `$` e `#`:
+
+```ini
+SECRET_KEY='cole-aqui-a-chave-gerada'
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
 Crie o banco, carregue os dados de exemplo, crie um usuário administrador e suba o servidor:
@@ -302,7 +322,7 @@ Formato dos erros:
 
 - `401` sem token: `{ "detail": "As credenciais de autenticação não foram fornecidas." }`
 - `401` no login com senha errada: `{ "detail": "Usuário e/ou senha incorreto(s)" }`
-- `404`: `{ "detail": "No Contrato matches the given query." }`
+- `404`: `{ "detail": "Registro não encontrado." }`
 - `400` de validação ou de regra de negócio: um item por campo, ex. `{ "inquilino": ["Este campo é obrigatório."] }` ou `{ "unidade": ["Esta unidade já tem o contrato #1 ativo..."] }`
 - `400` ao excluir registro em uso: `{ "detail": "Não é possível excluir este registro porque existem outros registros vinculados a ele." }`
 
@@ -841,6 +861,8 @@ Resultados:
 
 ![GET de id inexistente retorna 404](docs/img/etapa3-get-404.png)
 
+> Nesse print a mensagem ainda está em inglês. Na Etapa 12 ela passou a ser "Registro não encontrado.".
+
 ![POST sem inquilino retorna 400](docs/img/etapa3-post-400-campo-obrigatorio.png)
 
 ![DELETE de inquilino com contrato retorna 400](docs/img/etapa3-delete-protegido-400.png)
@@ -1361,6 +1383,8 @@ Regra de negócio testada pelo Swagger: `POST /api/contratos/` com período sobr
 git add .
 git commit -m "docs(api): adiciona documentação OpenAPI e Swagger"
 ```
+
+> **Redoc em branco?** A versão mais recente do Redoc passou a ser carregada como módulo (`import.meta`) e deixava a página em branco. Por isso o `SPECTACULAR_SETTINGS` fixa uma versão estável: `"REDOC_DIST": "https://cdn.jsdelivr.net/npm/redoc@2.1.5"`.
 
 ### Etapa 7 — Front-end Vue integrado à API (tutorial, seção 9)
 
@@ -1905,6 +1929,44 @@ O `save_related` roda depois de gravar o contrato e os pagamentos digitados na p
 ```bash
 git add .
 git commit -m "refactor(contratos): move regras do contrato para o model e aplica no admin"
+```
+
+### Etapa 12 — Mensagem do 404 em português
+
+**Objetivo:** a mensagem de id inexistente era a única resposta da API em inglês.
+
+Mesmo com `LANGUAGE_CODE = "pt-br"`, o Django gera o texto `"No Inquilino matches the given query."` sem passar pela tradução, e o DRF repassa esse texto no `404`. A troca é feita num tratador de erros do DRF, em `core/excecoes.py`:
+
+```python
+from django.http import Http404
+from rest_framework.exceptions import NotFound
+from rest_framework.views import exception_handler
+
+
+def tratar_excecao(exc, context):
+    if isinstance(exc, Http404):
+        exc = NotFound("Registro não encontrado.")
+    return exception_handler(exc, context)
+```
+
+E em `config/settings.py`:
+
+```python
+REST_FRAMEWORK = {
+    ...
+    "EXCEPTION_HANDLER": "core.excecoes.tratar_excecao",
+}
+```
+
+Os outros erros continuam com o tratamento padrão do DRF.
+
+**Teste:** `GET /api/inquilinos/999/` → `404` com `{"detail": "Registro não encontrado."}`.
+
+**Commit**
+
+```bash
+git add .
+git commit -m "feat(api): traduz a mensagem de registro não encontrado"
 ```
 
 ---

@@ -104,6 +104,8 @@ REST_FRAMEWORK = {
     # Paginação (Aula 25)
     "DEFAULT_PAGINATION_CLASS": "core.pagination.PaginacaoPadrao",
     "PAGE_SIZE": 10,
+    # Mensagem do 404 em português (core/excecoes.py)
+    "EXCEPTION_HANDLER": "core.excecoes.tratar_excecao",
     # Autenticação (tutorial, seção 13): token JWT para o front-end e clientes HTTP;
     # sessão para continuar usando a interface navegável do DRF depois de entrar pelo Admin.
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -136,6 +138,8 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     # Mantém o token informado no Authorize mesmo ao recarregar a página do Swagger.
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+    # Versão fixa do Redoc: a "latest" passou a usar import.meta e deixou a página em branco.
+    "REDOC_DIST": "https://cdn.jsdelivr.net/npm/redoc@2.1.5",
 }
 
 # Arquivos enviados pelo usuário (boletos e comprovantes)
