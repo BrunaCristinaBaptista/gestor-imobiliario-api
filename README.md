@@ -1969,6 +1969,105 @@ git add .
 git commit -m "feat(api): traduz a mensagem de registro não encontrado"
 ```
 
+### Etapa 13 — Publicação: Supabase, Cloudinary e Render (tutorial, apêndice A99)
+
+**Objetivo:** deixar a API e o front acessíveis pela internet, com os dados num banco que não se perde.
+
+| Parte | Serviço | Por quê |
+|---|---|---|
+| Banco de dados | **Supabase** (PostgreSQL) | o disco do Render é apagado a cada reinício, então o SQLite não serve na publicação |
+| Boletos e comprovantes | **Cloudinary** | pelo mesmo motivo: arquivos enviados não podem ficar no disco do Render |
+| API | **Render** (Web Service) | roda o Django com o Gunicorn |
+| Front-end | **Render** (Static Site) | publica o resultado do `npm run build` |
+
+**13.1 Bibliotecas**
+
+```bash
+uv add dj-database-url "psycopg[binary]" gunicorn whitenoise django-cloudinary-storage
+```
+
+- `dj-database-url`: lê o banco da variável `DATABASE_URL` (tutorial, A99a).
+- `psycopg`: driver do PostgreSQL, necessário para o Django falar com o Supabase.
+- `gunicorn`: servidor de produção (o `runserver` é só para desenvolvimento).
+- `whitenoise`: serve os arquivos estáticos (CSS do Admin e da API navegável) com `DEBUG=False`.
+- `django-cloudinary-storage`: guarda os arquivos enviados no Cloudinary (tutorial, A99c).
+
+**13.2 Configuração por variáveis de ambiente (`config/settings.py`)**
+
+O mesmo código roda no computador e na publicação; o que muda são as variáveis:
+
+| Variável | No computador (`.env`) | No Render |
+|---|---|---|
+| `DATABASE_URL` | ausente → SQLite | URL do Supabase → PostgreSQL |
+| `CLOUDINARY_URL` | ausente → pasta `media/` | URL do Cloudinary |
+| `DEBUG` | `True` | `False` |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | o domínio do Render |
+| `CSRF_TRUSTED_ORIGINS` | ausente | `https://` + domínio do Render (login do Admin) |
+
+```python
+DATABASES = {
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+}
+```
+
+**13.3 Script de build (`build.sh`)**
+
+Instala as dependências pelo `uv.lock`, coleta os estáticos e aplica as migrações no Supabase a cada publicação.
+
+**Diferenças em relação ao tutorial**
+
+- O tutorial usa `pip` e `requirements.txt`; aqui o build usa o `uv sync --frozen`, que instala as versões exatas do `uv.lock`.
+- O tutorial roda o Gunicorn com o Uvicorn (ASGI); aqui o Gunicorn roda o `config.wsgi`, que é suficiente para uma API sem WebSocket e dispensa o Uvicorn.
+- O tutorial usa a conexão direta do Supabase. O Render não acessa endereços IPv6, e a conexão direta do Supabase é IPv6; por isso a `DATABASE_URL` usa o **Session pooler** (IPv4, porta 5432).
+
+**13.4 Dados iniciais no Supabase**
+
+Com a `DATABASE_URL` do Supabase ativa no `.env`, uma única vez:
+
+```bash
+uv run python manage.py migrate
+uv run python manage.py loaddata dados_iniciais usuario_teste
+uv run python manage.py createsuperuser
+```
+
+Depois, comentar a `DATABASE_URL` no `.env` para voltar ao SQLite local.
+
+**13.5 Render: API (Web Service)**
+
+| Campo | Valor |
+|---|---|
+| Build Command | `./build.sh` |
+| Start Command | `.venv/bin/gunicorn config.wsgi:application` |
+| Instance Type | Free |
+| Environment Variables | `SECRET_KEY` (nova), `DEBUG=False`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `DATABASE_URL`, `CLOUDINARY_URL` |
+
+**13.6 Render: front-end (Static Site)**
+
+| Campo | Valor |
+|---|---|
+| Build Command | `npm install && npm run build` |
+| Publish Directory | `dist` |
+| Environment Variables | `VITE_API_URL` = URL da API + `/api/`; `NODE_VERSION=22` |
+| Redirects/Rewrites | Source `/*`, Destination `/index.html`, Action **Rewrite** |
+
+A regra de rewrite faz o endereço de uma tela (ex.: `/contratos`) abrir o `index.html`, onde o Vue Router decide a tela.
+
+**13.7 Limitações do plano gratuito**
+
+- **Render:** o serviço "dorme" depois de 15 minutos sem acesso; o primeiro acesso seguinte leva cerca de 1 minuto.
+- **Supabase:** o projeto é pausado depois de 7 dias sem uso; pode ser retomado no painel, com os dados intactos.
+
+**Commit**
+
+```bash
+git add .
+git commit -m "feat(deploy): prepara publicação com Supabase, Cloudinary e Render"
+```
+
 ---
 
 ## 6. Checklist da Parte 8

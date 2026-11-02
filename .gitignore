@@ -7,3 +7,5 @@ media/
 .env
 .vscode/
 .idea/
+staticfiles/
+.uv-python/

@@ -1,14 +1,16 @@
 """
 Configurações do projeto gestor-imobiliario-api.
 
-Valores sensíveis (SECRET_KEY, DEBUG, ALLOWED_HOSTS) vêm do arquivo .env,
-que não é versionado. Use o .env_exemplo como modelo.
+Valores sensíveis e o que muda entre o computador e a publicação vêm de variáveis
+de ambiente: no computador, do arquivo .env (não versionado, modelo em .env_exemplo);
+no Render, das "Environment Variables" do serviço.
 """
 
 import os
 from datetime import timedelta
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,6 +21,19 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Endereços HTTPS que podem enviar formulários (ex.: login do Admin publicado).
+# Ex.: CSRF_TRUSTED_ORIGINS=https://gestor-imobiliario-api.onrender.com
+CSRF_TRUSTED_ORIGINS = [
+    origem for origem in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origem
+]
+
+# No Render, o HTTPS termina no proxy; este cabeçalho avisa o Django que a requisição era HTTPS.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Cloudinary guarda boletos e comprovantes na publicação (o disco do Render é apagado
+# a cada reinício). Só é usado quando a variável CLOUDINARY_URL existe.
+USAR_CLOUDINARY = bool(os.getenv("CLOUDINARY_URL"))
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -27,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    *(["cloudinary_storage", "cloudinary"] if USAR_CLOUDINARY else []),
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
@@ -37,6 +53,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serve os arquivos estáticos (CSS do Admin, da API navegável) na publicação.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -66,11 +84,14 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
+# Sem a variável DATABASE_URL, usa o SQLite local. Com ela (publicação), usa o
+# PostgreSQL do Supabase. Ex.: DATABASE_URL=postgresql://usuario:senha@host:5432/postgres
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 
@@ -89,6 +110,7 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # destino do collectstatic na publicação
 
 
 REST_FRAMEWORK = {
@@ -145,6 +167,20 @@ SPECTACULAR_SETTINGS = {
 # Arquivos enviados pelo usuário (boletos e comprovantes)
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+STORAGES = {
+    # No computador, os arquivos ficam na pasta media/; na publicação, no Cloudinary.
+    "default": {
+        "BACKEND": (
+            "cloudinary_storage.storage.MediaCloudinaryStorage"
+            if USAR_CLOUDINARY
+            else "django.core.files.storage.FileSystemStorage"
+        ),
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 
 # Permite que o front-end Vue (outra origem, ex.: http://localhost:5173) consuma a API
